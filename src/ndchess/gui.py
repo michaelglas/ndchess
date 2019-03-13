@@ -3,9 +3,13 @@ Created on 07.03.2019
 
 @author: michi
 '''
+import gi
+gi.require_version('Gtk', '3.0')
+
 from gi.repository import Gtk
 import itertools
 import ndchess
+from ndchess import ina, hashable_array
 from functools import reduce
 from operator import xor
 from gi.repository import Gdk
@@ -16,6 +20,7 @@ import cairo
 square_size = 20
 color_light = (1,1,1)
 color_dark = (0,0,0)
+selected_alpha = 0.5
 
 def world_to_screen(wc,shape2d):
     sx = wc[0]
@@ -49,7 +54,7 @@ def screen_to_world(sc,shape2d):
     return wc
 
 class lwidget(Gtk.Misc):
-    def __init__(self,chess):
+    def __init__(self,chess,players=2):
         Gtk.Misc.__init__(self)
         self.chess = chess
         self.shape_2d = []
@@ -71,6 +76,7 @@ class lwidget(Gtk.Misc):
                     self.shape_2d.append(height)
                     x = True
         self.active_player = 1
+        self.players = players
         self.selected = []
         self.selected_piece = None
         for i in self.chess.allowed_pieces[1:]:
@@ -82,29 +88,47 @@ class lwidget(Gtk.Misc):
                 cr.set_source_rgb(*color_light)
             else:
                 cr.set_source_rgb(*color_dark)
-            cr.rectangle(*world_to_screen(wc, self.shape_2d),square_size,square_size)
+            sc = world_to_screen(wc, self.shape_2d)
+            cr.rectangle(*sc,square_size,square_size)
             cr.fill()
+            cont = self.chess.board[wc]
+            if cont:
+                Gdk.cairo_set_source_pixbuf(cr,self.chess.allowed_pieces[cont["piece"]].pixbuf,0,0)
+                cr.get_source().set_matrix(cairo.Matrix(x0=-sc[0],y0=-sc[1]))
+                cr.rectangle(*sc,square_size,square_size)
+                cr.fill()
         if self.selected_piece:
             Gdk.cairo_set_source_pixbuf(cr,self.selected_piece.pixbuf,0,0)
             cr.get_source().set_extend(cairo.EXTEND_REPEAT)
         else:
             cr.set_source_rgb(1,0,0)
         for wc in self.selected:
-            print("test")
-            Gdk.cairo_set_source_pixbuf(cr,self.selected_piece.pixbuf,0,0)
             cr.rectangle(*world_to_screen(wc, self.shape_2d),square_size,square_size)
-            print(self.selected_piece.pixbuf.data)
-            cr.fill()
+        cr.clip()
+        cr.paint_with_alpha(selected_alpha)
+        cr.reset_clip()
     
     def button_pressed(self,target,event):
         wc = screen_to_world((event.x,event.y), self.shape_2d)
         if self.selected:
-            if (wc == self.selected[0]).all():
+            if numpy.array_equal(wc,self.selected[0]):
                 self.selected = []
-            elif wc in self.selected:
-                self.chess.move_piece(self.selected[0],wc,self.active_plyer)
+            elif ina(self.selected,wc):
+                pos = tuple(self.selected[0])
+                twc = tuple(wc)
+                self.chess.board[twc] = self.chess.board[pos]
+                self.chess.board[pos] = b""
+                if self.chess.board[twc]["piece"]==1:
+                    self.chess.king_positions.discard(self.selected[0].view(hashable_array))
+                    self.chess.king_positions.add(wc.view(hashable_array))
+                print(self.active_player)
+                self.active_player = (self.active_player%self.players)+1
+                print(self.active_player)
+                self.selected = []
+                self.selected_piece = None
         else:
             cont = self.chess.board[tuple(wc)]
+            print(self.active_player)
             if cont["piece"] and cont["player"]==self.active_player:
                 self.selected.append(wc)
                 piece = self.chess.allowed_pieces[cont["piece"]]
@@ -139,8 +163,10 @@ class window(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self)
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
-        self.cwidget = widget(ndchess.ndChess((7,7,2,2),[ndchess.piece([numpy.array([1])], float("inf"),image="image.png")]))
-        self.cwidget.cwidget.chess.place_piece((0,0,0,0),1,1)
+        self.cwidget = widget(ndchess.ndChess((7,7,2,2),[ndchess.piece([numpy.array([1])], float("inf"),image="image.png")]*2))
+        self.cwidget.cwidget.chess.place_piece((0,0,0,0),2,2)
+        self.cwidget.cwidget.chess.place_piece((0,1,0,0),1,2)
+        self.cwidget.cwidget.chess.place_piece((1,2,0,0),1,1)
         self.add(self.cwidget)
 
 if __name__=="__main__":
