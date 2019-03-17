@@ -6,6 +6,12 @@ import json
 from os import path
 import os
 
+def fileabspath(vpath):
+    return path.normpath(path.join(__file__,vpath))
+
+def shellabspath(vpath):
+    return path.abspath(path.expanduser(vpath))
+
 class PieceJsonEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, piece):

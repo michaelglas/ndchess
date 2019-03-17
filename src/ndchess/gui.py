@@ -1,17 +1,21 @@
+#!/usr/bin/python3
 '''
 Created on 07.03.2019
 
 @author: michi
 '''
+import sys
+import os.path
+sys.path.append(os.path.normpath(os.path.join(__file__,"../..")))
+
 import gi
-from pcardext import ls
 from os.path import abspath
 gi.require_version('Gtk', '3.0')
 
 from gi.repository import Gtk
 import itertools
 import ndchess
-from ndchess import ina, hashable_array, flags
+from ndchess import ina, hashable_array, flags, fileabspath
 from gi.repository import Gdk
 from gi.repository import GdkPixbuf
 import numpy
@@ -99,7 +103,7 @@ class lwidget(Gtk.Misc):
         self.piece = 1
         self.pieces = len(self.chess.allowed_pieces)-1
         self.player = 1
-        self.nonexistent = GdkPixbuf.Pixbuf.new_from_file_at_scale(abspath("../../pieces/nonexistent.png"),square_size,square_size,False)
+        self.nonexistent = GdkPixbuf.Pixbuf.new_from_file_at_scale(fileabspath("../../../pieces/nonexistent.png"),square_size,square_size,False)
         self.ctrl=False
         for i in self.chess.allowed_pieces[1:]:
             i.pixbufs = [GdkPixbuf.Pixbuf.new_from_file_at_scale(image,square_size,square_size,False) for image in i.images[:self.players]]
@@ -220,7 +224,7 @@ class window(Gtk.Window):
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
         self.add_events(Gdk.EventMask.KEY_RELEASE_MASK)
-        self.cwidget = widget(ndchess.ndChess((7,7,2,2),ndchess.pieces_from_file("../../pieces/default.json")))
+        self.cwidget = widget(ndchess.ndChess((7,7,2,2),ndchess.pieces_from_file(fileabspath("../../../pieces/default.json"))))
         #self.cwidget.cwidget.chess.place_piece((0,0,0,0),2,2)
         #self.cwidget.cwidget.chess.place_piece((0,1,0,0),1,2)
         #self.cwidget.cwidget.chess.place_piece((1,2,0,0),1,1)
