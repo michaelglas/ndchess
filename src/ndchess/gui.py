@@ -25,6 +25,7 @@ square_size = 20
 color_light = (1,1,1)
 color_dark = (0,0,0)
 selected_color = (1,0,0,0.5)
+rect_color = [(0.745,0.207,0.035),(0.368,0.690,0.031),(0.564,0.129,0.690)]
 
 def draw_checkerboard(cr,l,h):
     for x,y in itertools.product(range(l),range(h)):
@@ -77,12 +78,12 @@ class lwidget(Gtk.Misc):
         self.chess = chess
         self.shape_2d = []
         x = True
-        shape = self.chess.board.shape
-        width = shape[0]
-        height = shape[1]
+        self.shape = self.chess.board.shape
+        width = self.shape[0]
+        height = self.shape[1]
         self.shape_2d = [width]
         self.shape_2d.append(height)
-        for sh in self.chess.board.shape[2:]:#-2]:
+        for sh in self.shape[2:]:#-2]:
             if x:
                 width = width*sh
                 self.shape_2d.append(width)
@@ -124,7 +125,7 @@ class lwidget(Gtk.Misc):
                 tcr.fill()
         
         if self.selected_piece:
-            Gdk.cairo_set_source_pixbuf(tcr,getd(self.selected_piece.pixbufs,self.chess.board[self.selected_pos]["player"]-1,self.nonexistent),0,0)
+            Gdk.cairo_set_source_pixbuf(tcr,getd(self.selected_piece.pixbufs,self.active_player-1,self.nonexistent),0,0)
             tcr.get_source().set_extend(cairo.EXTEND_REPEAT)
         else:
             tcr.set_source_rgb(1,0,0)
@@ -145,6 +146,20 @@ class lwidget(Gtk.Misc):
         cr.get_source().set_matrix(cairo.Matrix(x0=-x,y0=-y))
         cr.rectangle(x,y,square_size,square_size)
         cr.fill()
+        length = len(self.shape)
+        for i in range(2,length):
+            x,y = world_to_screen(tuple(map(lambda x:x-1,self.shape[:i]))+(0,)*(length-i),self.shape_2d)
+            x += square_size
+            y += square_size
+            zer = (0,)*i
+            print(i)
+            cr.set_source_rgb(*rect_color[i-2])
+            for wc in itertools.product(*map(range,self.shape[i:])):
+                print(zer+wc,x,y)
+                sc = world_to_screen(zer+wc, self.shape_2d)
+                print(sc)
+                cr.rectangle(*sc,x,y)
+            cr.stroke()
     
     def check_ctrl(self,target,event,m):
         if event.get_keyval().keyval==Gdk.KEY_Control_L:
@@ -189,7 +204,7 @@ class lwidget(Gtk.Misc):
                 self.chess.board[pos] = b""
                 if self.chess.board[twc]["piece"]==1:
                     self.chess.king_positions.discard((self.selected_pos.view(hashable_array),self.chess.board[twc]["player"]))
-                    self.chess.king_positions.add(wc.view(hashable_array))
+                    self.chess.king_positions.add((wc.view(hashable_array),self.chess.board[twc]["player"]))
                 self.active_player = (self.active_player%self.players)+1
                 self.selected = []
                 self.selected_piece = None
