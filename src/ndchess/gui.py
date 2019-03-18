@@ -15,7 +15,7 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 import itertools
 import ndchess
-from ndchess import ina, hashable_array, flags, fileabspath
+from ndchess import ina, hashable_array, flags, fileabspath, shellabspath
 from gi.repository import Gdk
 from gi.repository import GdkPixbuf
 import numpy
@@ -106,6 +106,7 @@ class lwidget(Gtk.Misc):
         self.player = 1
         self.nonexistent = GdkPixbuf.Pixbuf.new_from_file_at_scale(fileabspath("../../../pieces/nonexistent.png"),square_size,square_size,False)
         self.ctrl=False
+        self.shift=False
         for i in self.chess.allowed_pieces[1:]:
             i.pixbufs = [GdkPixbuf.Pixbuf.new_from_file_at_scale(image,square_size,square_size,False) for image in i.images[:self.players]]
     def do_draw(self,cr):
@@ -152,18 +153,18 @@ class lwidget(Gtk.Misc):
             x += square_size
             y += square_size
             zer = (0,)*i
-            print(i)
             cr.set_source_rgb(*rect_color[i-2])
             for wc in itertools.product(*map(range,self.shape[i:])):
-                print(zer+wc,x,y)
                 sc = world_to_screen(zer+wc, self.shape_2d)
-                print(sc)
                 cr.rectangle(*sc,x,y)
             cr.stroke()
     
     def check_ctrl(self,target,event,m):
-        if event.get_keyval().keyval==Gdk.KEY_Control_L:
+        keyval = event.get_keyval().keyval
+        if keyval==Gdk.KEY_Control_L:
             self.ctrl = m
+        elif keyval==Gdk.KEY_Shift_L:
+            self.shift = m
     
     def key_pressed(self,target,event):
         key = event.get_keyval().keyval
@@ -182,33 +183,24 @@ class lwidget(Gtk.Misc):
     
     def button_pressed(self,target,event):
         wc = screen_to_world((event.x,event.y), self.shape_2d)
-        if self.ctrl:
-            twc = tuple(wc)
-            if self.chess.board[twc]["piece"]==1:
-                self.chess.king_positions.discard((wc.view(hashable_array),self.chess.board[twc]["player"]))
-            if self.piece==1:
-                self.chess.king_positions.add((wc.view(hashable_array),self.player))
-            self.chess.board[twc]["piece"] = self.piece
-            self.chess.board[twc]["player"] = self.player
-            self.chess.board[twc]["flags"] = 0
-        elif self.selected:
+        #if self.ctrl:
+        #    self.chess.place_piece(wc,self.piece,self.player)
+        if self.selected:
             if numpy.array_equal(wc,self.selected_pos):
                 self.selected = []
                 self.selected_piece = None
                 self.selected_pos = None
-            elif ina(self.selected,wc):
-                pos = tuple(self.selected_pos)
-                twc = tuple(wc)
-                self.chess.board[twc] = self.chess.board[pos]
-                self.chess.board[twc]["flags"] |= flags.MOVED
-                self.chess.board[pos] = b""
-                if self.chess.board[twc]["piece"]==1:
-                    self.chess.king_positions.discard((self.selected_pos.view(hashable_array),self.chess.board[twc]["player"]))
-                    self.chess.king_positions.add((wc.view(hashable_array),self.chess.board[twc]["player"]))
+            elif self.ctrl or ina(self.selected,wc):
+                self.chess.move_piece_low(self.selected_pos,wc)
                 self.active_player = (self.active_player%self.players)+1
                 self.selected = []
                 self.selected_piece = None
                 self.selected_pos = None
+        elif self.ctrl:
+            if self.shift:
+                self.chess.clear_pos(wc)
+            else:
+                self.chess.place_piece(wc,self.piece,self.player)
         else:
             it = self.chess.get_all_moves(wc,self.active_player)
             try:
@@ -234,19 +226,35 @@ class widget(Gtk.EventBox):
     
 
 class window(Gtk.Window):
-    def __init__(self):
+    def __init__(self,shape=(7,7,2,2),pieces=ndchess.pieces_from_file(fileabspath("../../../pieces/default.json"))):
         Gtk.Window.__init__(self)
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
         self.add_events(Gdk.EventMask.KEY_RELEASE_MASK)
-        self.cwidget = widget(ndchess.ndChess((7,7,2,2),ndchess.pieces_from_file(fileabspath("../../../pieces/default.json"))))
+        self.cwidget = widget(ndchess.ndChess(shape,pieces))
         #self.cwidget.cwidget.chess.place_piece((0,0,0,0),2,2)
         #self.cwidget.cwidget.chess.place_piece((0,1,0,0),1,2)
         #self.cwidget.cwidget.chess.place_piece((1,2,0,0),1,1)
         self.add(self.cwidget)
 
 if __name__=="__main__":
-    win = window()
+    shape = ()
+    pieces = None
+    if len(sys.argv)>1:
+        shape = []
+        cont = True
+        for i,a in enumerate(sys.argv[1:],1):
+            try:
+                shape.append(int(a))
+            except ValueError:
+                pass
+        else:
+            cont = False
+        if cont:
+            pieces = ndchess.pieces_from_file(shellabspath(sys[i]))
+    if not pieces:
+        pieces = ndchess.pieces_from_file(fileabspath("../../../pieces/default.json"))
+    win = window(tuple(shape) or (7,7,2,2),pieces)
     win.connect("delete-event", Gtk.main_quit)
     win.show_all()
     Gtk.main()

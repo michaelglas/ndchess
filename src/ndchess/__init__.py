@@ -10,7 +10,7 @@ def fileabspath(vpath):
     return path.normpath(path.join(__file__,vpath))
 
 def shellabspath(vpath):
-    return path.abspath(path.expanduser(vpath))
+    return path.abspath(path.expandvars(path.expanduser(vpath)))
 
 class PieceJsonEncoder(json.JSONEncoder):
     def default(self, o):
@@ -144,13 +144,46 @@ class ndChess:
         self.king_positions = set()
         self.turn = 1
     def place_piece(self,pos,piece,player):
+        apos = numpy.array(pos).view(hashable_array)
+        tpos = tuple(pos)
         if not isinstance(piece, int):
             piece = find_piece(piece, self.allowed_pieces)
-        self.board[pos]["piece"] = piece
+        cont = self.board[tpos]
+        if cont["piece"]==1:
+            self.king_positions.discard((apos,cont["player"]))
+        cont["piece"] = piece
         if piece==1:
-            self.king_positions.add((numpy.array(pos).view(hashable_array),player))
-        self.board[pos]["player"] = player
-        self.board[pos]["flags"] = 0
+            self.king_positions.add((apos,player))
+        cont["player"] = player
+        cont["flags"] = 0
+    def place_piece_dt(self,pos,field):
+        cont = self.board[pos]
+        if cont["piece"]==1:
+            self.king_positions.discard(numpy.array(pos).view(hashable_array),cont["player"])
+        self.board[pos] = field
+        if field["piece"]==1:
+            self.king_positions.add((numpy.array(pos).view(hashable_array),field["player"]))
+    def clear_pos(self,pos):
+        tpos = tuple(pos)
+        cont = self.board[tpos]
+        if cont["piece"]==1:
+            self.king_positions.discard((numpy.array(pos).view(hashable_array),cont["player"]))
+        self.board[tpos] = b""
+    def move_piece_low(self,pos,new_pos):
+        tpos = tuple(pos)
+        tnpos = tuple(new_pos)
+        anpos = numpy.array(new_pos).view(hashable_array)
+        cont = self.board[tpos]
+        if cont["piece"]==1:
+            self.king_positions.discard((numpy.array(pos).view(hashable_array),cont["player"]))
+            self.king_positions.add((anpos,cont["player"]))
+        cont2 = self.board[tnpos]
+        if cont2["piece"]==1:
+            self.king_positions.discard((anpos,cont2["player"]))
+        self.board[tnpos] = cont
+        self.board[tnpos]["flags"] |= flags.MOVED
+        self.board[tpos] = b""
+    
     def get_piece(self,index):
         return numpy.take(self.allowed_pieces,self.board[index]["piece"])
     def move_piece(self,pos,new_pos,player):
