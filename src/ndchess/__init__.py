@@ -1,7 +1,7 @@
 import numpy
 import itertools
 import operator
-from functools import reduce
+from functools import reduce, partial
 import json
 from os import path
 import os
@@ -143,7 +143,7 @@ class ndChess:
         self.board = numpy.zeros(shape,dtype=field)
         self.king_positions = set()
         self.turn = 1
-    def place_piece(self,pos,piece,player):
+    def place_piece(self,pos,piece,player,flags=0):
         apos = numpy.array(pos).view(hashable_array)
         tpos = tuple(pos)
         if not isinstance(piece, int):
@@ -155,7 +155,8 @@ class ndChess:
         if piece==1:
             self.king_positions.add((apos,player))
         cont["player"] = player
-        cont["flags"] = 0
+        cont["flags"] = flags
+        print(cont)
     def place_piece_dt(self,pos,field):
         cont = self.board[pos]
         if cont["piece"]==1:
@@ -288,7 +289,7 @@ def extend(v,dims):
 
 class piece:
     def __init__(self, directions, max_moves=float("inf"), auto_generate = True, images=[], start_max_moves=None, capturing=None):
-        self.directions = list(map(numpy.array,directions))
+        self.directions = list(map(partial(numpy.array,dtype=numpy.int8),directions))
         self.max_moves = max_moves
         self.auto_generate = auto_generate
         self.images = list(map(path.abspath,images))
@@ -335,14 +336,15 @@ class piece:
                             capturing.append(new_capturing)
         else:
             for direction in self.directions:
-                new_direction = numpy.zeros((n,))
+                new_direction = numpy.zeros((n,),dtype=direction.dtype)
                 new_direction[:direction.shape[0]] = direction
                 directions.append(new_direction)
             if self.has_capturing:
                 for direction in self.capturing:
-                    new_direction = numpy.zeros((n,))
+                    new_direction = numpy.zeros((n,),dtype=direction.dtype)
                     new_direction[:direction.shape[0]] = direction
-                    directions.append(new_direction)
+                    capturing.append(new_direction)
+            print(directions,capturing)
         ret = piece.from_values(directions, self.max_moves, self.auto_generate, self.images, self.start_max_moves, self.has_capturing, capturing)
         ret.parent = self
         self.children.append(ret)

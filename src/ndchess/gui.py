@@ -22,8 +22,8 @@ import numpy
 import cairo
 
 square_size = 20
-color_light = (1,1,1)
-color_dark = (0,0,0)
+color_light = (1.0, 0.807, 0.619)#(1,1,1)
+color_dark = (0.819, 0.545, 0.278)#(0,0,0)
 selected_color = (1,0,0,0.5)
 rect_color = [(0.745,0.207,0.035),(0.368,0.690,0.031),(0.564,0.129,0.690)]
 
@@ -99,6 +99,8 @@ class lwidget(Gtk.Misc):
         self.selected = []
         self.selected_piece = None
         self.selected_pos = None
+        self.flag = numpy.uint8()
+        self.bit = 0
         self.surface = cairo.ImageSurface(cairo.FORMAT_ARGB32,self.width*square_size,self.height*square_size)
         self.tcr = cairo.Context(self.surface)
         self.piece = 1
@@ -147,6 +149,17 @@ class lwidget(Gtk.Misc):
         cr.get_source().set_matrix(cairo.Matrix(x0=-x,y0=-y))
         cr.rectangle(x,y,square_size,square_size)
         cr.fill()
+        y+=square_size
+        for i in range(8):
+            if self.flag&2**i:
+                cr.set_source_rgb(0,1,0)
+            else:
+                cr.set_source_rgb(1,0,0)
+            cr.rectangle(x+square_size*i,y,square_size,square_size)
+            cr.fill()
+        cr.set_source_rgb(0.5,0,0.1)
+        cr.rectangle(x+square_size*self.bit,y+square_size,square_size,square_size)
+        cr.fill()
         length = len(self.shape)
         for i in range(2,length):
             x,y = world_to_screen(tuple(map(lambda x:x-1,self.shape[:i]))+(0,)*(length-i),self.shape_2d)
@@ -169,16 +182,28 @@ class lwidget(Gtk.Misc):
     def key_pressed(self,target,event):
         key = event.get_keyval().keyval
         if key==Gdk.KEY_Up:
-            self.piece = (self.piece%self.pieces)+1
+            if self.shift:
+                self.flag ^= 2**self.bit
+            else:
+                self.piece = (self.piece%self.pieces)+1
             self.queue_draw()
         elif key==Gdk.KEY_Down:
-            self.piece = ((self.piece-2)%self.pieces)+1
+            if self.shift:
+                self.flag ^= 2**self.bit
+            else:
+                self.piece = ((self.piece-2)%self.pieces)+1
             self.queue_draw()
         elif key==Gdk.KEY_Left:
-            self.player = ((self.player-2)%self.players)+1
+            if self.shift:
+                self.bit = (self.bit-1)%8
+            else:
+                self.player = ((self.player-2)%self.players)+1
             self.queue_draw()
         elif key==Gdk.KEY_Right:
-            self.player = (self.player%self.players)+1
+            if self.shift:
+                self.bit = (self.bit+1)%8
+            else:
+                self.player = (self.player%self.players)+1
             self.queue_draw()
     
     def button_pressed(self,target,event):
@@ -200,7 +225,7 @@ class lwidget(Gtk.Misc):
             if self.shift:
                 self.chess.clear_pos(wc)
             else:
-                self.chess.place_piece(wc,self.piece,self.player)
+                self.chess.place_piece(wc,self.piece,self.player,self.flag)
         else:
             it = self.chess.get_all_moves(wc,self.active_player)
             try:
