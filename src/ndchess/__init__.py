@@ -31,8 +31,8 @@ def Piece_object_hook(d):
 
 field = numpy.dtype([("player",numpy.uint8),("piece",numpy.uint8),("flags",numpy.uint8)])
 
-class flags(int):
-    MOVED = 2**0
+class flags(numpy.uint8):
+    MOVED = numpy.uint8(2**0)
 
 class hashable_array(numpy.ndarray):
     def __hash__(self):
@@ -83,6 +83,8 @@ def pieces_from_file(file):
 
 def _get_all_moves(pos,directions,board,player,max_moves):
     for i in directions:
+        if player-1:
+            i = -i
         j = 1
         new_pos = pos.copy()
         while j<=max_moves:
@@ -102,6 +104,8 @@ def _get_all_moves(pos,directions,board,player,max_moves):
 
 def _get_capturing_moves(pos,directions,board,player,max_moves):
     for i in directions:
+        if player-1:
+            i = -i
         j = 1
         new_pos = pos.copy()
         while j<=max_moves:
@@ -121,6 +125,8 @@ def _get_capturing_moves(pos,directions,board,player,max_moves):
 
 def _get_noncapturing_moves(pos,directions,board,player,max_moves):
     for i in directions:
+        if player-1:
+            i = -i
         j = 1
         new_pos = pos.copy()
         while j<=max_moves:
@@ -156,7 +162,6 @@ class ndChess:
             self.king_positions.add((apos,player))
         cont["player"] = player
         cont["flags"] = flags
-        print(cont)
     def place_piece_dt(self,pos,field):
         cont = self.board[pos]
         if cont["piece"]==1:
@@ -344,7 +349,6 @@ class piece:
                     new_direction = numpy.zeros((n,),dtype=direction.dtype)
                     new_direction[:direction.shape[0]] = direction
                     capturing.append(new_direction)
-            print(directions,capturing)
         ret = piece.from_values(directions, self.max_moves, self.auto_generate, self.images, self.start_max_moves, self.has_capturing, capturing)
         ret.parent = self
         self.children.append(ret)
