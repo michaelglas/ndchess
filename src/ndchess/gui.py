@@ -22,7 +22,7 @@ import numpy
 import cairo
 from math import ceil,floor
 
-square_size = 14
+square_size = 20
 color_light = (1.0, 0.807, 0.619)#(1,1,1)
 color_dark = (0.819, 0.545, 0.278)#(0,0,0)
 selected_color = (1,0,0,0.5)
@@ -108,12 +108,14 @@ class lwidget(Gtk.Misc):
     def __init__(self,chess,players=2):
         Gtk.Misc.__init__(self)
         self.chess = chess
-        self.shape_2d = []
-        x = True
+        #self.shape_2d = []
+        #x = True
         self.shape = self.chess.board.shape
-        width = self.shape[0]
-        height = self.shape[1]
-        self.shape_2d = [width]
+        #width = self.shape[0]
+        '''        height = self.shape[1]
+        self.shape_2d = []
+        if len(shape)>2:
+            self.shape_2d.append(width)
         if len(self.shape)>3:
             self.shape_2d.append(height)
             for sh in self.shape[2:-2]:
@@ -128,9 +130,9 @@ class lwidget(Gtk.Misc):
             height *= self.shape[-1]
         if len(self.shape)>2:
             width *= self.shape[-2]
-        print(self.shape_2d)
         self.width = width
-        self.height = height
+        self.height = height'''
+        self.calculate_shape2d()
         self.active_player = 1
         self.players = players
         self.selected = []
@@ -147,6 +149,7 @@ class lwidget(Gtk.Misc):
         self.nonexistent = GdkPixbuf.Pixbuf.new_from_file_at_scale(fileabspath("../../../pieces/nonexistent.png"),square_size,square_size,False)
         self.ctrl=False
         self.shift=False
+        self.shape_pos = 1
         for i in self.chess.allowed_pieces[1:]:
             i.pixbufs = [GdkPixbuf.Pixbuf.new_from_file_at_scale(image,square_size,square_size,False) for image in i.images[:self.players]]
     def do_draw(self,cr):
@@ -156,7 +159,7 @@ class lwidget(Gtk.Misc):
         tcr.paint()
         tcr.set_operator(cairo.OPERATOR_OVER)
         
-        for wc in itertools.product(*map(range,self.chess.board.shape)):
+        for wc in itertools.product(*map(range,self.shape)):
             sc = world_to_screen(wc, self.shape_2d)
             cont = self.chess.board[wc]
             if cont:
@@ -183,21 +186,41 @@ class lwidget(Gtk.Misc):
         cr.paint()
         x = self.width*square_size
         y = self.height*square_size
-        Gdk.cairo_set_source_pixbuf(cr,getd(self.chess.allowed_pieces[self.piece].pixbufs,self.player-1,self.nonexistent),0,0)
-        cr.get_source().set_matrix(cairo.Matrix(x0=-x,y0=-y))
-        cr.rectangle(x,y,square_size,square_size)
-        cr.fill()
-        y+=square_size
-        for i in range(8):
-            if self.flags&2**i:
-                cr.set_source_rgb(0,1,0)
-            else:
-                cr.set_source_rgb(1,0,0)
-            cr.rectangle(x+square_size*i,y,square_size,square_size)
+        if self.ctrl:
+            Gdk.cairo_set_source_pixbuf(cr,getd(self.chess.allowed_pieces[self.piece].pixbufs,self.player-1,self.nonexistent),0,0)
+            cr.get_source().set_matrix(cairo.Matrix(x0=-x,y0=-y))
+            cr.rectangle(x,y,square_size,square_size)
             cr.fill()
-        cr.set_source_rgb(0.5,0,0.1)
-        cr.rectangle(x+square_size*self.bit,y+square_size,square_size,square_size)
-        cr.fill()
+            y+=square_size
+            for i in range(8):
+                if self.flags&2**i:
+                    cr.set_source_rgb(0,1,0)
+                else:
+                    cr.set_source_rgb(1,0,0)
+                cr.rectangle(x+square_size*i,y,square_size,square_size)
+                cr.fill()
+            y+= square_size
+            cr.set_source_rgb(0.5,0,0.1)
+            cr.rectangle(x+square_size*self.bit,y,square_size,square_size)
+            cr.fill()
+            y+= square_size
+        y+= square_size
+        cr.move_to(x,y)
+        cr.set_source_rgb(0,0,0)
+        cr.set_font_size(square_size/1.2)
+        cr.show_text(",".join(map(str,self.shape)))
+        ltext = ",".join(map(str,self.shape[:self.shape_pos]))
+        if ltext:
+            ltext+=","
+        lx,ly = cr.text_extents(ltext)[-2:]
+        w,h = cr.text_extents(",".join(map(str,self.shape[:self.shape_pos+1])))[2:4]
+        w-=lx
+        h-=ly
+        lx+=x
+        ly+=y
+        cr.rectangle(lx,ly,w,-h)
+        cr.set_line_width(square_size/15)
+        cr.stroke()
         length = len(self.shape)
         for i in range(2,length):
             x,y = world_to_screen(tuple(map(lambda x:x-1,self.shape[:i]))+(0,)*(length-i),self.shape_2d)
@@ -210,38 +233,101 @@ class lwidget(Gtk.Misc):
                 cr.rectangle(*sc,x,y)
             cr.stroke()
     
+    def clear_selection(self):
+        self.selected = []
+        self.selected_piece = None
+        self.selected_pos = None
+    
+    def calculate_shape2d(self):
+        width = self.shape[0]
+        height = self.shape[1]
+        self.shape_2d = []
+        x = True
+        if len(shape)>2:
+            self.shape_2d.append(width)
+        if len(self.shape)>3:
+            self.shape_2d.append(height)
+            for sh in self.shape[2:-2]:
+                if x:
+                    width = width*sh
+                    self.shape_2d.append(width)
+                    x = False
+                else:
+                    height = height*sh
+                    self.shape_2d.append(height)
+                    x = True
+            height *= self.shape[-1]
+        if len(self.shape)>2:
+            width *= self.shape[-2]
+        self.width = width
+        self.height = height
+    
     def check_ctrl(self,target,event,m):
         keyval = event.get_keyval().keyval
         if keyval==Gdk.KEY_Control_L:
             self.ctrl = m
+            self.queue_draw()
         elif keyval==Gdk.KEY_Shift_L:
             self.shift = m
+    
+    def swap_axis(self,axis1,axis2):
+        self.chess.board = self.chess.board.swapaxes(axis1,axis2)
+        self.chess.shape = self.chess.board.shape
+        self.shape = self.chess.board.shape
+        for i in self.chess.king_positions:
+            self.chess.king_positions.remove(i)
+            ar = i[0]
+            ar[[axis1,axis2]] = ar[[axis2,axis1]]
+            self.chess.king_positions.add((ar,i[1]))
+        for i in self.selected:
+            i[[axis1,axis2]] = i[[axis2,axis1]]
+        if self.selected_pos is not None:
+            self.selected_pos[[axis1,axis2]] = self.selected_pos[[axis2,axis1]]
+        self.calculate_shape2d()
     
     def key_pressed(self,target,event):
         key = event.get_keyval().keyval
         if key==Gdk.KEY_Up:
-            if self.shift:
-                self.flags ^= 2**self.bit
+            if self.ctrl:
+                if self.shift:
+                    self.flags ^= 2**self.bit
+                else:
+                    self.piece = (self.piece%self.pieces)+1
             else:
-                self.piece = (self.piece%self.pieces)+1
+                pass
             self.queue_draw()
         elif key==Gdk.KEY_Down:
-            if self.shift:
-                self.flags ^= 2**self.bit
-            else:
-                self.piece = ((self.piece-2)%self.pieces)+1
+            if self.ctrl:
+                if self.shift:
+                    self.flags ^= 2**self.bit
+                else:
+                    self.piece = ((self.piece-2)%self.pieces)+1
             self.queue_draw()
         elif key==Gdk.KEY_Left:
-            if self.shift:
-                self.bit = (self.bit-1)%8
+            if self.ctrl:
+                if self.shift:
+                    self.bit = (self.bit-1)%8
+                else:
+                    self.player = ((self.player-2)%self.players)+1
+            elif self.shift:
+                new_shape_pos = (self.shape_pos-1)%len(self.shape)
+                self.swap_axis(self.shape_pos, new_shape_pos)
+                self.shape_pos = new_shape_pos
             else:
-                self.player = ((self.player-2)%self.players)+1
+                self.shape_pos = (self.shape_pos-1)%len(self.shape)
             self.queue_draw()
         elif key==Gdk.KEY_Right:
-            if self.shift:
-                self.bit = (self.bit+1)%8
+            if self.ctrl:
+                if self.shift:
+                    self.bit = (self.bit+1)%8
+                else:
+                    self.player = (self.player%self.players)+1
+            elif self.shift:
+                new_shape_pos = (self.shape_pos+1)%len(self.shape)
+                self.swap_axis(self.shape_pos, new_shape_pos)
+                self.shape_pos = new_shape_pos
             else:
-                self.player = (self.player%self.players)+1
+                self.shape_pos = (self.shape_pos+1)%len(self.shape)
             self.queue_draw()
         elif self.ctrl and key==Gdk.KEY_p:
             self.active_player = self.player
@@ -268,7 +354,9 @@ class lwidget(Gtk.Misc):
                     self.selected = list(it)
                     self.selected_pos = wc
                 except StopIteration:
-                    pass
+                    self.selected = []
+                    self.selected_piece = None
+                    self.selected_pos = None
         elif self.ctrl:
             self.coords = event.x,event.y
         else:
@@ -333,6 +421,7 @@ class window(Gtk.Window):
         self.add(self.cwidget)
 
 if __name__=="__main__":
+    import argparse
     shape = ()
     pieces = None
     if len(sys.argv)>1:
@@ -349,7 +438,7 @@ if __name__=="__main__":
             pieces = ndchess.pieces_from_file(shellabspath(sys[i]))
     if not pieces:
         pieces = ndchess.pieces_from_file(fileabspath("../../../pieces/default.json"))
-    win = window(tuple(shape) or (4,4,4,4,4,4),pieces)
+    win = window(tuple(shape) or (8,8),pieces)
     win.connect("delete-event", Gtk.main_quit)
     win.show_all()
     Gtk.main()
