@@ -110,7 +110,7 @@ class lwidget(Gtk.Misc):
         self.chess = chess
         #self.shape_2d = []
         #x = True
-        self.shape = self.chess.board.shape
+        self.shape = self.chess.shape
         #width = self.shape[0]
         '''        height = self.shape[1]
         self.shape_2d = []
@@ -159,14 +159,12 @@ class lwidget(Gtk.Misc):
         tcr.paint()
         tcr.set_operator(cairo.OPERATOR_OVER)
         
-        for wc in itertools.product(*map(range,self.shape)):
+        for wc,cont in self.chess.board.items():
             sc = world_to_screen(wc, self.shape_2d)
-            cont = self.chess.board[wc]
-            if cont:
-                Gdk.cairo_set_source_pixbuf(tcr,getd(self.chess.allowed_pieces[cont["piece"]].pixbufs,cont["player"]-1,self.nonexistent),0,0)
-                tcr.get_source().set_matrix(cairo.Matrix(x0=-sc[0],y0=-sc[1]))
-                tcr.rectangle(*sc,square_size,square_size)
-                tcr.fill()
+            Gdk.cairo_set_source_pixbuf(tcr,getd(self.chess.allowed_pieces[cont.piece].pixbufs,cont.player-1,self.nonexistent),0,0)
+            tcr.get_source().set_matrix(cairo.Matrix(x0=-sc[0],y0=-sc[1]))
+            tcr.rectangle(*sc,square_size,square_size)
+            tcr.fill()
         
         if self.selected_piece:
             Gdk.cairo_set_source_pixbuf(tcr,getd(self.selected_piece.pixbufs,self.active_player-1,self.nonexistent),0,0)
@@ -271,14 +269,21 @@ class lwidget(Gtk.Misc):
             self.shift = m
     
     def swap_axis(self,axis1,axis2):
+        """
         self.chess.board = self.chess.board.swapaxes(axis1,axis2)
         self.chess.shape = self.chess.board.shape
         self.shape = self.chess.board.shape
+        """
+        self.shape[[axis1,axis2]] = self.shape[[axis2,axis1]]
         for i in self.chess.king_positions:
             self.chess.king_positions.remove(i)
             ar = i[0]
             ar[[axis1,axis2]] = ar[[axis2,axis1]]
             self.chess.king_positions.add((ar,i[1]))
+        for i in self.chess.board.keys():
+            new_pos = i.copy()
+            new_pos[[axis1,axis2]] = new_pos[[axis2,axis1]]
+            self.chess.board[new_pos] = self.chess.board.pop(i)
         for i in self.selected:
             i[[axis1,axis2]] = i[[axis2,axis1]]
         if self.selected_pos is not None:
@@ -343,6 +348,7 @@ class lwidget(Gtk.Misc):
                 self.selected_pos = None
             elif self.ctrl or ina(self.selected,wc):
                 self.chess.move_piece_low(self.selected_pos,wc)
+                print(self.chess.king_positions)
                 self.active_player = (self.active_player%self.players)+1
                 self.selected = []
                 self.selected_piece = None
@@ -390,9 +396,11 @@ class lwidget(Gtk.Misc):
             if self.shift:
                 for sc in itertools.product(xs,ys):
                     self.chess.clear_pos(sq_to_world(sc, self.shape_2d))
+                print(self.chess.king_positions)
             else:
                 for sc in itertools.product(xs,ys):
                     self.chess.place_piece(sq_to_world(sc, self.shape_2d),self.piece,self.player,self.flags)
+                print(self.chess.king_positions)
             self.queue_draw()
         self.coords = None
                 
@@ -421,7 +429,6 @@ class window(Gtk.Window):
         self.add(self.cwidget)
 
 if __name__=="__main__":
-    import argparse
     shape = ()
     pieces = None
     if len(sys.argv)>1:
