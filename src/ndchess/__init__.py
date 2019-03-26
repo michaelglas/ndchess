@@ -92,7 +92,11 @@ def _get_all_moves(pos,directions,board,player,max_moves,shape):
         if player-1:
             i = -i
         new_pos = pos.copy()
-        for j in range(max_moves):
+        if max_moves:
+            iter = range(max_moves)
+        else:
+            iter = itertools.repeat(None)
+        for j in iter:
             new_pos += i
             if (new_pos<0).any() or (new_pos>=shape).any():
                 break
@@ -112,7 +116,11 @@ def _get_capturing_moves(pos,directions,board,player,max_moves,shape):
         if player-1:
             i = -i
         new_pos = pos.copy()
-        for j in range(max_moves):
+        if max_moves:
+            iter = range(max_moves)
+        else:
+            iter = itertools.repeat(None)
+        for j in iter:
             new_pos += i
             if (new_pos<0).any() or (new_pos>=shape).any():
                 break
@@ -131,7 +139,11 @@ def _get_noncapturing_moves(pos,directions,board,player,max_moves,shape):
         if player-1:
             i = -i
         new_pos = pos.copy()
-        for j in range(max_moves):
+        if max_moves:
+            iter = range(max_moves)
+        else:
+            iter = itertools.repeat(None)
+        for j in iter:
             new_pos += i
             if (new_pos<0).any() or (new_pos>=shape).any():
                 break
@@ -280,14 +292,12 @@ class ndChess:
             cont = self.board[pos]
             if cont.piece and cont.player==player:
                 piece = self.allowed_pieces[cont.piece]
-                max_moves = piece.max_moves if cont.flags|flags.MOVED else piece.start_max_moves
+                max_moves = piece.max_moves if cont.flags&flags.MOVED else piece.start_max_moves
                 yield piece
                 if piece.has_capturing:
-                    print("capt")
                     yield from _get_noncapturing_moves(pos, piece.directions, self.board, player, max_moves, self.shape)
                     yield from _get_capturing_moves(pos, piece.capturing, self.board, player, max_moves, self.shape)
                 else:
-                    print("all")
                     yield from _get_all_moves(pos, piece.directions, self.board, player, max_moves, self.shape)
         else:
             return
@@ -333,7 +343,7 @@ def extend(v,dims):
     
 
 class piece:
-    def __init__(self, directions, max_moves=float("inf"), auto_generate = True, images=[], start_max_moves=None, capturing=None):
+    def __init__(self, directions, max_moves=None, auto_generate = True, images=[], start_max_moves=None, capturing=None):
         self.directions = list(map(partial(numpy.array,dtype=numpy.int8),directions))
         self.max_moves = max_moves
         self.auto_generate = auto_generate
