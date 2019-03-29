@@ -6,6 +6,7 @@ Created on 07.03.2019
 '''
 import sys
 import os.path
+import operator
 sys.path.append(os.path.normpath(os.path.join(__file__,"../..")))
 
 import gi
@@ -27,6 +28,13 @@ color_light = (1.0, 0.807, 0.619)#(1,1,1)
 color_dark = (0.819, 0.545, 0.278)#(0,0,0)
 selected_color = (1,0,0,0.5)
 rect_color = [(0.745,0.207,0.035),(0.368,0.690,0.031),(0.564,0.129,0.690),(0,0,0)]
+
+get_end = operator.attrgetter("end")
+
+def index_iter(iter,value):
+    for i,v in enumerate(iter):
+        if v==value:
+            return i
 
 def enumerate2(xs, start=0, step=1):
     for x in xs:
@@ -83,7 +91,7 @@ def screen_to_world(sc,shape2d):
             ux = True
     wc[0] = x
     wc[1] = y
-    return wc
+    return wc.view(hashable_array)
 
 def sq_to_world(sc,shape2d):
     x = floor(sc[0])
@@ -135,8 +143,9 @@ class lwidget(Gtk.Misc):
         self.calculate_shape2d()
         self.active_player = 1
         self.players = players
-        self.selected = []
+        #self.selected = []
         self.selected_piece = None
+        self.moves = []
         self.selected_pos = None
         self.flags = flags.MOVED
         self.bit = 0
@@ -171,7 +180,7 @@ class lwidget(Gtk.Misc):
             tcr.get_source().set_extend(cairo.EXTEND_REPEAT)
         else:
             tcr.set_source_rgb(1,0,0)
-        for wc in self.selected:
+        for wc in map(get_end,self.moves):
             tcr.rectangle(*world_to_screen(wc, self.shape_2d),square_size,square_size)
         tcr.clip()
         tcr.paint()
@@ -232,9 +241,10 @@ class lwidget(Gtk.Misc):
             cr.stroke()
     
     def clear_selection(self):
-        self.selected = []
+        #self.selected = []
         self.selected_piece = None
         self.selected_pos = None
+        self.moves = []
     
     def calculate_shape2d(self):
         width = self.shape[0]
@@ -284,8 +294,9 @@ class lwidget(Gtk.Misc):
             new_pos = i.copy()
             new_pos[[axis1,axis2]] = new_pos[[axis2,axis1]]
             self.chess.board[new_pos] = self.chess.board.pop(i)
-        for i in self.selected:
-            i[[axis1,axis2]] = i[[axis2,axis1]]
+        self.moves[0].start[[axis1,axis2]] = self.moves[0].start[[axis2,axis1]]
+        for i in self.moves:
+            i.end[[axis1,axis2]] = i.end[[axis2,axis1]]
         if self.selected_pos is not None:
             self.selected_pos[[axis1,axis2]] = self.selected_pos[[axis2,axis1]]
         self.calculate_shape2d()
@@ -341,35 +352,36 @@ class lwidget(Gtk.Misc):
         wc = screen_to_world((event.x,event.y), self.shape_2d)
         #if self.ctrl:
         #    self.chess.place_piece(wc,self.piece,self.player)
-        if self.selected:
-            if numpy.array_equal(wc,self.selected_pos):
-                self.selected = []
-                self.selected_piece = None
-                self.selected_pos = None
-            elif self.ctrl or ina(self.selected,wc):
+        if self.moves:
+            if self.ctrl:
                 self.chess.move_piece_low(self.selected_pos,wc)
-                print(self.chess.king_positions)
                 self.active_player = (self.active_player%self.players)+1
-                self.selected = []
-                self.selected_piece = None
-                self.selected_pos = None
+                self.clear_selection()
             else:
-                it = self.chess.get_all_moves(wc,self.active_player)
-                try:
-                    self.selected_piece = next(it)
-                    self.selected = list(it)
-                    self.selected_pos = wc
-                except StopIteration:
-                    self.selected = []
-                    self.selected_piece = None
-                    self.selected_pos = None
+                ind = index_iter(map(get_end,self.moves), wc)
+                if ind is not None:
+                    self.moves[ind].execute()
+                    self.active_player = (self.active_player%self.players)+1
+                    self.clear_selection()
+                else:
+                    it = self.chess.get_all_moves(wc,self.active_player)
+                    try:
+                        self.selected_piece = next(it)
+                        self.moves = list(it)
+                        print(self.moves)
+                        #self.selected = list(it)
+                        self.selected_pos = wc
+                    except StopIteration:
+                        self.clear_selection()
         elif self.ctrl:
             self.coords = event.x,event.y
         else:
             it = self.chess.get_all_moves(wc,self.active_player)
             try:
                 self.selected_piece = next(it)
-                self.selected = list(it)
+                self.moves = list(it)
+                print(self.moves)
+                #self.selected = list(it)
                 self.selected_pos = wc
             except StopIteration:
                 pass
