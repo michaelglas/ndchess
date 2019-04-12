@@ -116,34 +116,10 @@ class lwidget(Gtk.Misc):
     def __init__(self,chess,players=2):
         Gtk.Misc.__init__(self)
         self.chess = chess
-        #self.shape_2d = []
-        #x = True
         self.shape = self.chess.shape
-        #width = self.shape[0]
-        '''        height = self.shape[1]
-        self.shape_2d = []
-        if len(shape)>2:
-            self.shape_2d.append(width)
-        if len(self.shape)>3:
-            self.shape_2d.append(height)
-            for sh in self.shape[2:-2]:
-                if x:
-                    width = width*sh
-                    self.shape_2d.append(width)
-                    x = False
-                else:
-                    height = height*sh
-                    self.shape_2d.append(height)
-                    x = True
-            height *= self.shape[-1]
-        if len(self.shape)>2:
-            width *= self.shape[-2]
-        self.width = width
-        self.height = height'''
         self.calculate_shape2d()
         self.active_player = 1
         self.players = players
-        #self.selected = []
         self.selected_piece = None
         self.moves = []
         self.selected_pos = None
@@ -169,11 +145,12 @@ class lwidget(Gtk.Misc):
         tcr.set_operator(cairo.OPERATOR_OVER)
         
         for wc,cont in self.chess.board.items():
-            sc = world_to_screen(wc, self.shape_2d)
-            Gdk.cairo_set_source_pixbuf(tcr,getd(self.chess.allowed_pieces[cont.piece].pixbufs,cont.player-1,self.nonexistent),0,0)
-            tcr.get_source().set_matrix(cairo.Matrix(x0=-sc[0],y0=-sc[1]))
-            tcr.rectangle(*sc,square_size,square_size)
-            tcr.fill()
+            if isinstance(cont, ndchess.field):
+                sc = world_to_screen(wc, self.shape_2d)
+                Gdk.cairo_set_source_pixbuf(tcr,getd(self.chess.allowed_pieces[cont.piece].pixbufs,cont.player-1,self.nonexistent),0,0)
+                tcr.get_source().set_matrix(cairo.Matrix(x0=-sc[0],y0=-sc[1]))
+                tcr.rectangle(*sc,square_size,square_size)
+                tcr.fill()
         
         if self.selected_piece:
             Gdk.cairo_set_source_pixbuf(tcr,getd(self.selected_piece.pixbufs,self.active_player-1,self.nonexistent),0,0)
@@ -279,11 +256,6 @@ class lwidget(Gtk.Misc):
             self.shift = m
     
     def swap_axis(self,axis1,axis2):
-        """
-        self.chess.board = self.chess.board.swapaxes(axis1,axis2)
-        self.chess.shape = self.chess.board.shape
-        self.shape = self.chess.board.shape
-        """
         self.shape[[axis1,axis2]] = self.shape[[axis2,axis1]]
         for i in self.chess.king_positions:
             self.chess.king_positions.remove(i)
@@ -405,7 +377,7 @@ class lwidget(Gtk.Misc):
                 ys = get_all_ints_in_range(y, ey)
             else:
                 ys = sg(y)
-            if self.shift:
+            if event.button==3:
                 for sc in itertools.product(xs,ys):
                     self.chess.clear_pos(sq_to_world(sc, self.shape_2d))
                 print(self.chess.king_positions)

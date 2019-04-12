@@ -37,6 +37,10 @@ class field:
         self.piece = numpy.uint8(piece)
         self.flags = numpy.uint8(flags)
 
+class capture_marker:
+    def __init__(self,link):
+        self.link = link
+
 class flags(numpy.uint8):
     MOVED = numpy.uint8(2**0)
 
@@ -47,9 +51,19 @@ class Move:
         self.chess = chess
     def execute(self):
         self.chess.move_piece_low(self.start,self.end)
+        self.chess.clear_capturing_markers()
 
-class MoveOP(Move):
-    pass
+class MoveEP(Move):
+    def __init__(self,start,end,cm,chess):
+        self.start = start
+        self.end = end
+        self.capt_mark = cm
+        self.chess = chess
+    def execute(self):
+        Move.execute(self)
+        self.chess.clear_capturing_markers()
+        self.chess.place_capture_marker(self.capt_mark,self.end)
+        
 
 class hashable_array(numpy.ndarray):
     def __hash__(self):
@@ -98,117 +112,309 @@ def pieces_from_file(file):
         i+=1
     return l
 
-def _get_all_moves(pos,directions,player,max_moves,chess):
+def _check_all(pos,piece,player,chess):
+    if (pos<0).any() or (pos>=chess.shape).any():
+        return False,True
+    try:
+        cont2 = chess.board[pos]
+    except KeyError:
+        return True,False
+    if type(cont2)==capture_marker:
+        linkcont = chess.board[cont2.link]
+        if linkcont.player!=player and linkcont.piece==piece:
+            return True,True
+        else:
+            return True,False
+    if cont2.player==player:
+        return False,True
+    return True,True
+
+def _check_capturing(pos,piece,player,chess):
+    if (pos<0).any() or (pos>=chess.shape).any():
+        return False,True
+    try:
+        cont2 = chess.board[pos]
+    except KeyError:
+        return False,False
+    if type(cont2)==capture_marker:
+        linkcont = chess.board[cont2.link]
+        if linkcont.player!=player and linkcont.piece==piece:
+            return True,True
+        else:
+            return False,False
+    if cont2.player==player:
+        return False,True
+    return True,True
+
+def _check_noncapturing(pos,piece,player,chess):
+    if (pos<0).any() or (pos>=chess.shape).any():
+        return False,True
+    try:
+        cont2 = chess.board[pos]
+    except KeyError:
+        return True,False
+    if type(cont2)==capture_marker:
+        linkcont = chess.board[cont2.link]
+        if linkcont.player!=player and linkcont.piece==piece:
+            return False,True
+        else:
+            return True,False
+    if cont2.player==player:
+        return False,True
+    return False,True
+
+def _get_all_moves(pos,directions,player,max_moves,chess,piece):
+    if max_moves:
+        iter = range(max_moves)
+    else:
+        iter = itertools.repeat(None)
     for i in directions:
         if player-1:
             i = -i
         new_pos = pos.copy()
-        if max_moves:
-            iter = range(max_moves)
-        else:
-            iter = itertools.repeat(None)
         for j in iter:
             new_pos += i
+            """
             if (new_pos<0).any() or (new_pos>=chess.shape).any():
                 break
             try:
                 cont2 = chess.board[new_pos]
             except KeyError:
                 yield Move(pos,new_pos.copy(),chess)
+                continue
+            if type(cont2)==capture_marker:
+                yield Move(pos,new_pos.copy(),chess)
+                if cont2.link.player!=player and cont2.link.piece==piece:
+                    break
                 continue
             if cont2.player==player:
                 break
             yield Move(pos,new_pos.copy(),chess)
             if cont2.piece:
                 break
+            """
+            r,b = _check_all(new_pos, piece, player, chess)
+            if r:
+                yield Move(pos,new_pos.copy(),chess)
+            if b:
+                break
 
-def _get_capturing_moves(pos,directions,player,max_moves,chess):
+def _get_all_moves_start(pos,directions,player,max_moves,start_max_moves,chess,piece):
+    if max_moves:
+        if start_max_moves:
+            if start_max_moves>max_moves:
+                siter = range(max_moves,start_max_moves)
+                iter = range(max_moves)
+            else:
+                yield from _get_all_moves(pos, directions, player, start_max_moves, chess, piece)
+                return
+        else:
+            siter = itertools.repeat(None)
+            iter = range(max_moves)
+    else:
+        if start_max_moves:
+            yield from _get_all_moves(pos, directions, player, start_max_moves, chess, piece)
+            return
+        yield from _get_all_moves(pos, directions, player, None, chess, piece)
+        return
+    
     for i in directions:
         if player-1:
             i = -i
         new_pos = pos.copy()
-        if max_moves:
-            iter = range(max_moves)
-        else:
-            iter = itertools.repeat(None)
         for j in iter:
             new_pos += i
-            if (new_pos<0).any() or (new_pos>=chess.shape).any():
-                break
-            try:
-                cont2 = chess.board[new_pos]
-            except KeyError:
-                continue
-            if cont2.player==player:
-                break
-            if cont2.piece:
+            r,b = _check_all(new_pos, piece, player, chess)
+            if r:
                 yield Move(pos,new_pos.copy(),chess)
+            if b:
+                break
+        cm = new_pos.copy()
+        for j in siter:
+            new_pos += i
+            r,b = _check_all(new_pos, piece, player, chess)
+            if r:
+                yield MoveEP(pos,new_pos.copy(),cm,chess)
+            if b:
                 break
 
-def _get_noncapturing_moves(pos,directions,player,max_moves,chess):
+def _get_capturing_moves(pos,directions,player,max_moves,chess,piece):
+    if max_moves:
+        iter = range(max_moves)
+    else:
+        iter = itertools.repeat(None)
     for i in directions:
         if player-1:
             i = -i
         new_pos = pos.copy()
-        if max_moves:
-            iter = range(max_moves)
-        else:
-            iter = itertools.repeat(None)
         for j in iter:
             new_pos += i
-            if (new_pos<0).any() or (new_pos>=chess.shape).any():
-                break
-            try:
-                cont2 = chess.board[new_pos]
-            except KeyError:
+            r,b = _check_capturing(new_pos, piece, player, chess)
+            if r:
                 yield Move(pos,new_pos.copy(),chess)
-                continue
-            if cont2.player==player or cont2.piece:
+            if b:
                 break
-            yield Move(pos,new_pos.copy(),chess)
+
+def _get_capturing_moves_start(pos,directions,player,max_moves,start_max_moves,chess,piece):
+    if max_moves:
+        if start_max_moves:
+            if start_max_moves>max_moves:
+                siter = range(max_moves,start_max_moves)
+                iter = range(max_moves)
+            else:
+                yield from _get_capturing_moves(pos, directions, player, start_max_moves, chess)
+                return
+        else:
+            siter = itertools.repeat(None)
+            iter = range(max_moves)
+    else:
+        if start_max_moves:
+            yield from _get_capturing_moves(pos, directions, player, start_max_moves, chess)
+            return
+        yield from _get_capturing_moves(pos, directions, player, None, chess)
+        return
+    
+    for i in directions:
+        if player-1:
+            i = -i
+        new_pos = pos.copy()
+        for j in iter:
+            new_pos += i
+            r,b = _check_capturing(new_pos, piece, player, chess)
+            if r:
+                yield Move(pos,new_pos.copy(),chess)
+            if b:
+                break
+        cm = new_pos.copy()
+        for j in siter:
+            new_pos += i
+            r,b = _check_capturing(new_pos, piece, player, chess)
+            if r:
+                yield MoveEP(pos,new_pos.copy(),cm,chess)
+            if b:
+                break
+
+def _get_noncapturing_moves(pos,directions,player,max_moves,chess,piece):
+    if max_moves:
+        iter = range(max_moves)
+    else:
+        iter = itertools.repeat(None)
+    for i in directions:
+        if player-1:
+            i = -i
+        new_pos = pos.copy()
+        for j in iter:
+            new_pos += i
+            r,b = _check_noncapturing(new_pos, piece, player, chess)
+            if r:
+                yield Move(pos,new_pos.copy(),chess)
+            if b:
+                break
+
+
+def _get_noncapturing_moves_start(pos,directions,player,max_moves,start_max_moves,chess,piece):
+    if max_moves:
+        if start_max_moves:
+            if start_max_moves>max_moves:
+                siter = range(max_moves,start_max_moves)
+                iter = range(max_moves)
+            else:
+                yield from _get_noncapturing_moves(pos, directions, player, start_max_moves, chess, piece)
+                return
+        else:
+            siter = itertools.repeat(None)
+            iter = range(max_moves)
+    else:
+        if start_max_moves:
+            yield from _get_noncapturing_moves(pos, directions, player, start_max_moves, chess, piece)
+            return
+        yield from _get_noncapturing_moves(pos, directions, player, None, chess, piece)
+        return
+    
+    for i in directions:
+        if player-1:
+            i = -i
+        new_pos = pos.copy()
+        print(i)
+        for j in iter:
+            new_pos += i
+            r,b = _check_noncapturing(new_pos, piece, player, chess)
+            if r:
+                yield Move(pos,new_pos.copy(),chess)
+            if b:
+                break
+        cm = new_pos.copy()
+        for j in siter:
+            new_pos += i
+            r,b = _check_noncapturing(new_pos, piece, player, chess)
+            if r:
+                yield MoveEP(pos,new_pos.copy(),cm,chess)
+            if b:
+                break
 
 class ndChess:
     def __init__(self,shape,allowed_pieces):
         self.shape = numpy.array(shape,copy=False)
         self.allowed_pieces = [None]+list(map(operator.methodcaller("get_in_nd",len(shape)),allowed_pieces))
-        #self.board = numpy.zeros(shape,dtype=field)
         self.board = {}
         self.king_positions = set()
+        self.capturing_markers = set()
         self.turn = 1
+    def place_capture_marker(self,pos,link):
+        pos = numpy.array(pos,copy=False).view(hashable_array)
+        if link in self.board and isinstance(self.board[link], field):
+            if pos in self.board:
+                if isinstance(self.board[pos], capture_marker):
+                    self.capturing_markers.add(pos)
+                    self.board[pos] = capture_marker(link)
+            else:
+                self.capturing_markers.add(pos)
+                self.board[pos] = capture_marker(link)
+    def clear_capturing_markers(self):
+        for i in self.capturing_markers:
+            del self.board[i]
     def place_piece(self,pos,piece,player,flags=0):
         pos = numpy.array(pos,copy=False).view(hashable_array)
         if not isinstance(piece, int):
             piece = find_piece(piece, self.allowed_pieces)
         try:
             cont = self.board[pos]
-            if cont.piece==1:
-                self.king_positions.discard((pos,cont.player))
-            cont.piece = piece
-            cont.player = player
-            cont.flags = flags
+            if isinstance(cont, field):
+                if cont.piece==1:
+                    self.king_positions.discard((pos,cont.player))
+            elif isinstance(cont, capture_marker):
+                self.capturing_markers.discard(pos)
+                self.clear_pos(cont.link)
         except KeyError:
-            self.board[pos] = field(player, piece, flags)
+            pass
+        self.board[pos] = field(player, piece, flags)
         if piece==1:
             self.king_positions.add((pos,player))
-    def place_piece_field(self,pos,field):
+    def place_piece_field(self,pos,fieldv):
         pos = numpy.array(pos,copy=False).view(hashable_array)
         try:
             cont = self.board[pos]
-            if cont.piece==1:
+            if isinstance(cont, field) and cont.piece==1:
                 self.king_positions.discard((pos,cont.player))
+            elif isinstance(cont, capture_marker):
+                self.capturing_markers.discard(pos)
+                self.clear_pos(cont.link)
         except KeyError:
             pass
-        self.board[pos] = field
-        if field.piece==1:
-            self.king_positions.add((pos,field.player))
+        self.board[pos] = fieldv
+        if fieldv.piece==1:
+            self.king_positions.add((pos,fieldv.player))
     def clear_pos(self,pos):
         pos = numpy.array(pos,copy=False).view(hashable_array)
         try:
             cont = self.board[pos]
         except KeyError:
             return
-        if cont.piece==1:
-            self.king_positions.remove((pos,cont.player))
+        if isinstance(cont, field):
+            if cont.piece==1:
+                self.king_positions.remove((pos,cont.player))
+        else:
+            self.capturing_markers.discard(pos)
         del self.board[pos]
     def move_piece_low(self,pos,new_pos):
         pos = numpy.array(pos,copy=False).view(hashable_array)
@@ -216,9 +422,10 @@ class ndChess:
             cont = self.board[pos]
         except KeyError:
             return
-        cont.flags |= flags.MOVED
-        self.place_piece_field(new_pos, cont)
-        self.clear_pos(pos)
+        if isinstance(cont, field):
+            cont.flags |= flags.MOVED
+            self.place_piece_field(new_pos, cont)
+            self.clear_pos(pos)
     
     # TODO
     def is_check(self,player):
@@ -272,15 +479,22 @@ class ndChess:
         pos = numpy.array(pos,copy=False).view(hashable_array)
         if pos in self.board:
             cont = self.board[pos]
-            if cont.piece and cont.player==player:
+            if isinstance(cont, field) and cont.piece and cont.player==player:
                 piece = self.allowed_pieces[cont.piece]
-                max_moves = piece.max_moves if cont.flags&flags.MOVED else piece.start_max_moves
+                #max_moves = piece.max_moves if cont.flags&flags.MOVED else piece.start_max_moves
                 yield piece
-                if piece.has_capturing:
-                    yield from _get_noncapturing_moves(pos, piece.directions, player, max_moves, self)
-                    yield from _get_capturing_moves(pos, piece.capturing, player, max_moves, self)
+                if cont.flags&flags.MOVED:
+                    if piece.has_capturing:
+                        yield from _get_noncapturing_moves(pos, piece.directions, player, piece.max_moves, self, cont.piece)
+                        yield from _get_capturing_moves(pos, piece.capturing, player, piece.max_moves, self, cont.piece)
+                    else:
+                        yield from _get_all_moves(pos, piece.directions, player, piece.max_moves, self, cont.piece)
                 else:
-                    yield from _get_all_moves(pos, piece.directions, player, max_moves, self)
+                    if piece.has_capturing:
+                        yield from _get_noncapturing_moves_start(pos, piece.directions, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
+                        yield from _get_capturing_moves_start(pos, piece.capturing, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
+                    else:
+                        yield from _get_all_moves_start(pos, piece.directions, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
         else:
             return
 
