@@ -65,6 +65,19 @@ class MoveEP(Move):
         self.chess.place_capture_marker(self.capt_mark,self.end)
         
 
+def get_as_player(dir,player,axis):
+    ret = dir.copy()
+    a2=(player//2)%dir.shape[-1]
+    if a2:
+        if a2<=axis:
+            a2-=1
+        temp = ret[...,axis]
+        ret[...,axis]=ret[...,a2]
+        ret[...,a2]=temp
+    if player&1:
+        ret = -ret
+    return ret
+
 class hashable_array(numpy.ndarray):
     def __hash__(self):
         return int.from_bytes(self.tobytes(),"big")
@@ -169,7 +182,7 @@ def _get_all_moves(pos,directions,player,max_moves,chess,piece):
     else:
         iter = itertools.repeat(None)
     for i in directions:
-        if player-1:
+        if player:
             i = -i
         new_pos = pos.copy()
         for j in iter:
@@ -219,7 +232,7 @@ def _get_all_moves_start(pos,directions,player,max_moves,start_max_moves,chess,p
         return
     
     for i in directions:
-        if player-1:
+        if player:
             i = -i
         new_pos = pos.copy()
         for j in iter:
@@ -244,7 +257,7 @@ def _get_capturing_moves(pos,directions,player,max_moves,chess,piece):
     else:
         iter = itertools.repeat(None)
     for i in directions:
-        if player-1:
+        if player:
             i = -i
         new_pos = pos.copy()
         for j in iter:
@@ -275,7 +288,7 @@ def _get_capturing_moves_start(pos,directions,player,max_moves,start_max_moves,c
         return
     
     for i in directions:
-        if player-1:
+        if player:
             i = -i
         new_pos = pos.copy()
         for j in iter:
@@ -300,7 +313,7 @@ def _get_noncapturing_moves(pos,directions,player,max_moves,chess,piece):
     else:
         iter = itertools.repeat(None)
     for i in directions:
-        if player-1:
+        if player:
             i = -i
         new_pos = pos.copy()
         for j in iter:
@@ -332,7 +345,7 @@ def _get_noncapturing_moves_start(pos,directions,player,max_moves,start_max_move
         return
     
     for i in directions:
-        if player-1:
+        if player:
             i = -i
         new_pos = pos.copy()
         print(i)
@@ -373,6 +386,7 @@ class ndChess:
     def clear_capturing_markers(self):
         for i in self.capturing_markers:
             del self.board[i]
+        self.capturing_markers.clear()
     def place_piece(self,pos,piece,player,flags=0):
         pos = numpy.array(pos,copy=False).view(hashable_array)
         if not isinstance(piece, int):
@@ -479,7 +493,7 @@ class ndChess:
         pos = numpy.array(pos,copy=False).view(hashable_array)
         if pos in self.board:
             cont = self.board[pos]
-            if isinstance(cont, field) and cont.piece and cont.player==player:
+            if isinstance(cont, field) and cont.player==player:
                 piece = self.allowed_pieces[cont.piece]
                 #max_moves = piece.max_moves if cont.flags&flags.MOVED else piece.start_max_moves
                 yield piece
@@ -492,7 +506,8 @@ class ndChess:
                 else:
                     if piece.has_capturing:
                         yield from _get_noncapturing_moves_start(pos, piece.directions, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
-                        yield from _get_capturing_moves_start(pos, piece.capturing, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
+                        #yield from _get_capturing_moves_start(pos, piece.capturing, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
+                        yield from _get_capturing_moves(pos, piece.capturing, player, piece.max_moves, self, cont.piece)
                     else:
                         yield from _get_all_moves_start(pos, piece.directions, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
         else:

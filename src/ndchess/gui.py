@@ -118,7 +118,7 @@ class lwidget(Gtk.Misc):
         self.chess = chess
         self.shape = self.chess.shape
         self.calculate_shape2d()
-        self.active_player = 1
+        self.active_player = 0
         self.players = players
         self.selected_piece = None
         self.moves = []
@@ -130,7 +130,7 @@ class lwidget(Gtk.Misc):
         self.tcr = cairo.Context(self.surface)
         self.piece = 1
         self.pieces = len(self.chess.allowed_pieces)-1
-        self.player = 1
+        self.player = 0
         self.nonexistent = GdkPixbuf.Pixbuf.new_from_file_at_scale(fileabspath("../../../pieces/nonexistent.png"),square_size,square_size,False)
         self.ctrl=False
         self.shift=False
@@ -147,13 +147,13 @@ class lwidget(Gtk.Misc):
         for wc,cont in self.chess.board.items():
             if isinstance(cont, ndchess.field):
                 sc = world_to_screen(wc, self.shape_2d)
-                Gdk.cairo_set_source_pixbuf(tcr,getd(self.chess.allowed_pieces[cont.piece].pixbufs,cont.player-1,self.nonexistent),0,0)
+                Gdk.cairo_set_source_pixbuf(tcr,getd(self.chess.allowed_pieces[cont.piece].pixbufs,cont.player,self.nonexistent),0,0)
                 tcr.get_source().set_matrix(cairo.Matrix(x0=-sc[0],y0=-sc[1]))
                 tcr.rectangle(*sc,square_size,square_size)
                 tcr.fill()
         
         if self.selected_piece:
-            Gdk.cairo_set_source_pixbuf(tcr,getd(self.selected_piece.pixbufs,self.active_player-1,self.nonexistent),0,0)
+            Gdk.cairo_set_source_pixbuf(tcr,getd(self.selected_piece.pixbufs,self.active_player,self.nonexistent),0,0)
             tcr.get_source().set_extend(cairo.EXTEND_REPEAT)
         else:
             tcr.set_source_rgb(1,0,0)
@@ -171,7 +171,7 @@ class lwidget(Gtk.Misc):
         x = self.width*square_size
         y = self.height*square_size
         if self.ctrl:
-            Gdk.cairo_set_source_pixbuf(cr,getd(self.chess.allowed_pieces[self.piece].pixbufs,self.player-1,self.nonexistent),0,0)
+            Gdk.cairo_set_source_pixbuf(cr,getd(self.chess.allowed_pieces[self.piece].pixbufs,self.player,self.nonexistent),0,0)
             cr.get_source().set_matrix(cairo.Matrix(x0=-x,y0=-y))
             cr.rectangle(x,y,square_size,square_size)
             cr.fill()
@@ -296,7 +296,7 @@ class lwidget(Gtk.Misc):
                 if self.shift:
                     self.bit = (self.bit-1)%8
                 else:
-                    self.player = ((self.player-2)%self.players)+1
+                    self.player = (self.player-1)%self.players
             elif self.shift:
                 new_shape_pos = (self.shape_pos-1)%len(self.shape)
                 self.swap_axis(self.shape_pos, new_shape_pos)
@@ -309,7 +309,7 @@ class lwidget(Gtk.Misc):
                 if self.shift:
                     self.bit = (self.bit+1)%8
                 else:
-                    self.player = (self.player%self.players)+1
+                    self.player = (self.player+1)%self.players
             elif self.shift:
                 new_shape_pos = (self.shape_pos+1)%len(self.shape)
                 self.swap_axis(self.shape_pos, new_shape_pos)
@@ -327,13 +327,13 @@ class lwidget(Gtk.Misc):
         if self.moves:
             if self.ctrl:
                 self.chess.move_piece_low(self.selected_pos,wc)
-                self.active_player = (self.active_player%self.players)+1
+                self.active_player = (self.active_player+1)%self.players
                 self.clear_selection()
             else:
                 ind = index_iter(map(get_end,self.moves), wc)
                 if ind is not None:
                     self.moves[ind].execute()
-                    self.active_player = (self.active_player%self.players)+1
+                    self.active_player = (self.active_player+1)%self.players
                     self.clear_selection()
                 else:
                     it = self.chess.get_all_moves(wc,self.active_player)
