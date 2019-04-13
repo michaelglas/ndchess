@@ -626,12 +626,10 @@ class piece:
             dir = directions[0]
             for i in range(1,players):
                 get_as_player(dir, i, self.player_dependent_axis, out=directions[i])
-            print("d",directions)
             if self.has_capturing:
                 cap = capturing[0]
                 for i in range(1,players):
                     get_as_player(cap, i, self.player_dependent_axis, out=capturing[i])
-                print("c",capturing)
         ret = piece.from_values(directions, self.max_moves, self.auto_generate, self.images, self.start_max_moves, self.has_capturing, self.player_dependent, self.player_dependent_axis if self.player_dependent else None, capturing)
         ret.parent = self
         self.children.append(ret)
