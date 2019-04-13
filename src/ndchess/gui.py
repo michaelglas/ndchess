@@ -390,9 +390,9 @@ class lwidget(Gtk.Misc):
                 
 
 class widget(Gtk.EventBox):
-    def __init__(self,chess):
+    def __init__(self,chess,players=4):
         Gtk.EventBox.__init__(self)
-        self.cwidget = lwidget(chess)
+        self.cwidget = lwidget(chess,players)
         self.add(self.cwidget)
         self.set_can_focus(True)
         self.connect("button-press-event",self.cwidget.button_pressed)
@@ -403,13 +403,13 @@ class widget(Gtk.EventBox):
     
 
 class window(Gtk.Window):
-    def __init__(self,shape=(8,8,2,2),pieces=ndchess.pieces_from_file(fileabspath("../../../pieces/default.json"))):
+    def __init__(self,shape=(8,8,2,2),pieces=ndchess.pieces_from_file(fileabspath("../../../pieces/default.json")),players=4):
         Gtk.Window.__init__(self)
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
         self.add_events(Gdk.EventMask.KEY_RELEASE_MASK)
         self.add_events(Gdk.EventMask.BUTTON_RELEASE_MASK)
-        self.cwidget = widget(ndchess.ndChess(shape,pieces))
+        self.cwidget = widget(ndchess.ndChess(shape,pieces,players))
         self.add(self.cwidget)
 
 if __name__=="__main__":

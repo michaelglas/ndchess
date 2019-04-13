@@ -27,7 +27,7 @@ class PieceJsonEncoder(json.JSONEncoder):
 
 def Piece_object_hook(d):
     if "directions" in d:
-        return piece(**{ k:d[k] for k in ["directions","max_moves","auto_generate","images","start_max_moves","capturing"] if k in d})
+        return piece(**{ k:d[k] for k in ["directions","max_moves","auto_generate","images","start_max_moves","capturing","player_dependent_axis"] if k in d})
 
 #field = numpy.dtype([("player",numpy.uint8),("piece",numpy.uint8),("flags",numpy.uint8)])
 
@@ -65,18 +65,27 @@ class MoveEP(Move):
         self.chess.place_capture_marker(self.capt_mark,self.end)
         
 
-def get_as_player(dir,player,axis):
-    ret = dir.copy()
+def get_as_player(dir,player,axis,out=None):
+    if out is None:
+        out = dir.copy()
+    else:
+        out[...] = dir
     a2=(player//2)%dir.shape[-1]
     if a2:
         if a2<=axis:
             a2-=1
-        temp = ret[...,axis]
-        ret[...,axis]=ret[...,a2]
-        ret[...,a2]=temp
+        temp = out[...,axis].copy()
+        out[...,axis]=out[...,a2]
+        out[...,a2]=temp
     if player&1:
-        ret = -ret
-    return ret
+        numpy.negative(out,out=out)
+    return out
+
+def get_permutations(n,k):
+    p = n
+    for i in range(1,k):
+        p*=n-i
+    return p
 
 class hashable_array(numpy.ndarray):
     def __hash__(self):
@@ -182,8 +191,7 @@ def _get_all_moves(pos,directions,player,max_moves,chess,piece):
     else:
         iter = itertools.repeat(None)
     for i in directions:
-        if player:
-            i = -i
+
         new_pos = pos.copy()
         for j in iter:
             new_pos += i
@@ -232,8 +240,6 @@ def _get_all_moves_start(pos,directions,player,max_moves,start_max_moves,chess,p
         return
     
     for i in directions:
-        if player:
-            i = -i
         new_pos = pos.copy()
         for j in iter:
             new_pos += i
@@ -257,8 +263,6 @@ def _get_capturing_moves(pos,directions,player,max_moves,chess,piece):
     else:
         iter = itertools.repeat(None)
     for i in directions:
-        if player:
-            i = -i
         new_pos = pos.copy()
         for j in iter:
             new_pos += i
@@ -288,8 +292,6 @@ def _get_capturing_moves_start(pos,directions,player,max_moves,start_max_moves,c
         return
     
     for i in directions:
-        if player:
-            i = -i
         new_pos = pos.copy()
         for j in iter:
             new_pos += i
@@ -313,8 +315,6 @@ def _get_noncapturing_moves(pos,directions,player,max_moves,chess,piece):
     else:
         iter = itertools.repeat(None)
     for i in directions:
-        if player:
-            i = -i
         new_pos = pos.copy()
         for j in iter:
             new_pos += i
@@ -345,10 +345,7 @@ def _get_noncapturing_moves_start(pos,directions,player,max_moves,start_max_move
         return
     
     for i in directions:
-        if player:
-            i = -i
         new_pos = pos.copy()
-        print(i)
         for j in iter:
             new_pos += i
             r,b = _check_noncapturing(new_pos, piece, player, chess)
@@ -366,9 +363,9 @@ def _get_noncapturing_moves_start(pos,directions,player,max_moves,start_max_move
                 break
 
 class ndChess:
-    def __init__(self,shape,allowed_pieces):
+    def __init__(self,shape,allowed_pieces,players):
         self.shape = numpy.array(shape,copy=False)
-        self.allowed_pieces = [None]+list(map(operator.methodcaller("get_in_nd",len(shape)),allowed_pieces))
+        self.allowed_pieces = [None]+list(map(operator.methodcaller("get_in_nd",len(shape),players),allowed_pieces))
         self.board = {}
         self.king_positions = set()
         self.capturing_markers = set()
@@ -499,17 +496,30 @@ class ndChess:
                 yield piece
                 if cont.flags&flags.MOVED:
                     if piece.has_capturing:
-                        yield from _get_noncapturing_moves(pos, piece.directions, player, piece.max_moves, self, cont.piece)
-                        yield from _get_capturing_moves(pos, piece.capturing, player, piece.max_moves, self, cont.piece)
+                        if piece.player_dependent:
+                            yield from _get_noncapturing_moves(pos, piece.directions[player], player, piece.max_moves, self, cont.piece)
+                            yield from _get_capturing_moves(pos, piece.capturing[player], player, piece.max_moves, self, cont.piece)
+                        else:
+                            yield from _get_noncapturing_moves(pos, piece.directions, player, piece.max_moves, self, cont.piece)
+                            yield from _get_capturing_moves(pos, piece.capturing, player, piece.max_moves, self, cont.piece)
                     else:
-                        yield from _get_all_moves(pos, piece.directions, player, piece.max_moves, self, cont.piece)
+                        if piece.player_dependent:
+                            yield from _get_all_moves(pos, piece.directions[player], player, piece.max_moves, self, cont.piece)
+                        else:
+                            yield from _get_all_moves(pos, piece.directions, player, piece.max_moves, self, cont.piece)
                 else:
                     if piece.has_capturing:
-                        yield from _get_noncapturing_moves_start(pos, piece.directions, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
-                        #yield from _get_capturing_moves_start(pos, piece.capturing, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
-                        yield from _get_capturing_moves(pos, piece.capturing, player, piece.max_moves, self, cont.piece)
+                        if piece.player_dependent:
+                            yield from _get_noncapturing_moves_start(pos, piece.directions[player], player, piece.max_moves, piece.start_max_moves, self, cont.piece)
+                            yield from _get_capturing_moves(pos, piece.capturing[player], player, piece.max_moves, self, cont.piece)
+                        else:
+                            yield from _get_noncapturing_moves_start(pos, piece.directions, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
+                            yield from _get_capturing_moves(pos, piece.capturing, player, piece.max_moves, self, cont.piece)
                     else:
-                        yield from _get_all_moves_start(pos, piece.directions, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
+                        if piece.player_dependent:
+                            yield from _get_all_moves_start(pos, piece.directions[player], player, piece.max_moves, piece.start_max_moves, self, cont.piece)
+                        else:
+                            yield from _get_all_moves_start(pos, piece.directions, player, piece.max_moves, piece.start_max_moves, self, cont.piece)
         else:
             return
 
@@ -523,7 +533,7 @@ def extend(v,dims):
     
 
 class piece:
-    def __init__(self, directions, max_moves=None, auto_generate = True, images=[], start_max_moves=None, capturing=None):
+    def __init__(self, directions, max_moves=None, auto_generate = True, images=[], start_max_moves=None, capturing=None, player_dependent_axis=None):
         self.directions = list(map(partial(numpy.array,dtype=numpy.int8),directions))
         self.max_moves = max_moves
         self.auto_generate = auto_generate
@@ -538,8 +548,13 @@ class piece:
         else:
             self.has_capturing = True
             self.capturing = list(map(numpy.array,capturing))
+        if player_dependent_axis is None:
+            self.player_dependent = False
+        else:
+            self.player_dependent_axis=player_dependent_axis
+            self.player_dependent = True
     @classmethod
-    def from_values(cls,directions, max_moves, auto_generate, images, start_max_moves, has_capturing, capturing=None):
+    def from_values(cls,directions, max_moves, auto_generate, images, start_max_moves, has_capturing, player_dependent, player_dependent_axis=None, capturing=None):
         self = cls.__new__(cls)
         self.directions = directions
         self.max_moves = max_moves
@@ -552,34 +567,72 @@ class piece:
                 raise ValueError("no capturing given")
             else:
                 self.capturing = capturing
+        self.player_dependent = player_dependent
+        if player_dependent:
+            if player_dependent_axis is None:
+                raise ValueError("no player dependent axis given")
+            else:
+                self.player_dependent_axis = player_dependent_axis
         return self
-    def get_in_nd(self,n):
-        directions = []
+    def get_in_nd(self,n,players=1):
+        #directions = []
+        if self.player_dependent:
+            directions = numpy.empty((players,sum(((2**i.shape[0])*get_permutations(n, i.shape[0]) for i in self.directions)) if self.auto_generate else len(self.directions),n),dtype=numpy.int8)
+        else:
+            directions = numpy.empty((1,sum(((2**i.shape[0])*get_permutations(n, i.shape[0]) for i in self.directions)) if self.auto_generate else len(self.directions),n),dtype=numpy.int8)
+        dlength = 0
         if self.has_capturing:
-            capturing = []
+            if self.player_dependent:
+                capturing = numpy.empty((players,sum(((2**i.shape[0])*get_permutations(n, i.shape[0]) for i in self.capturing)) if self.auto_generate else len(self.capturing),n),dtype=numpy.int8)
+            else:
+                capturing = numpy.empty((1,sum(((2**i.shape[0])*get_permutations(n, i.shape[0]) for i in self.capturing)) if self.auto_generate else len(self.capturing),n),dtype=numpy.int8)
+            clength = 0
         else:
             capturing = None
         if self.auto_generate:
             for direction in self.directions:
                 for new_direction in extend(direction, n):
-                    if not ina(directions,new_direction):
-                        directions.append(new_direction)
+                    if not ina(directions[0,:dlength,:],new_direction):
+                        directions[0,dlength] = new_direction
+                        dlength+=1
             if self.has_capturing:
                 for capturingn in self.capturing:
                     for new_capturing in extend(capturingn, n):
-                        if not ina(capturing,new_capturing):
-                            capturing.append(new_capturing)
+                        if not ina(capturing[0,:clength,:],new_capturing):
+                            capturing[0,clength] = new_capturing
+                            clength+=1
         else:
             for direction in self.directions:
                 new_direction = numpy.zeros((n,),dtype=direction.dtype)
                 new_direction[:direction.shape[0]] = direction
-                directions.append(new_direction)
+                directions[0,dlength] = new_direction
+                dlength+=1
             if self.has_capturing:
-                for direction in self.capturing:
-                    new_direction = numpy.zeros((n,),dtype=direction.dtype)
-                    new_direction[:direction.shape[0]] = direction
-                    capturing.append(new_direction)
-        ret = piece.from_values(directions, self.max_moves, self.auto_generate, self.images, self.start_max_moves, self.has_capturing, capturing)
+                for capturingn in self.capturing:
+                    new_capturing = numpy.zeros((n,),dtype=capturingn.dtype)
+                    new_capturing[:capturingn.shape[0]] = capturingn
+                    capturing[0,clength] = new_capturing
+                    clength+=1
+        if self.player_dependent:
+            directions.resize((players,dlength,n))
+        else:
+            directions.resize((dlength,n))
+        if self.has_capturing:
+            if self.player_dependent:
+                capturing.resize((players,clength,n))
+            else:
+                capturing.resize((clength,n))
+        if self.player_dependent:
+            dir = directions[0]
+            for i in range(1,players):
+                get_as_player(dir, i, self.player_dependent_axis, out=directions[i])
+            print("d",directions)
+            if self.has_capturing:
+                cap = capturing[0]
+                for i in range(1,players):
+                    get_as_player(cap, i, self.player_dependent_axis, out=capturing[i])
+                print("c",capturing)
+        ret = piece.from_values(directions, self.max_moves, self.auto_generate, self.images, self.start_max_moves, self.has_capturing, self.player_dependent, self.player_dependent_axis if self.player_dependent else None, capturing)
         ret.parent = self
         self.children.append(ret)
         return ret

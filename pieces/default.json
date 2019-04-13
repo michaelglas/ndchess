@@ -10,6 +10,7 @@
      "capturing": [[1,1],[-1,1]],
      "start_max_moves": 2,
      "max_moves": 1,
+     "player_dependent_axis": 1, 
      "images": ["default/pawn1.svg","default/pawn2.svg"]
     },
     {
