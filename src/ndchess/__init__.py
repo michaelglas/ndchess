@@ -190,6 +190,7 @@ def _get_all_moves(pos,directions,player,max_moves,chess,piece):
         iter = range(max_moves)
     else:
         iter = itertools.repeat(None)
+    print(pos)
     for i in directions:
 
         new_pos = pos.copy()
@@ -370,6 +371,7 @@ class ndChess:
         self.king_positions = set()
         self.capturing_markers = set()
         self.turn = 1
+        self.players = players
     def place_capture_marker(self,pos,link):
         pos = numpy.array(pos,copy=False).view(hashable_array)
         if link in self.board and isinstance(self.board[link], field):

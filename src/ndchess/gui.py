@@ -236,7 +236,7 @@ class lwidget(Gtk.Misc):
         height = self.shape[1]
         self.shape_2d = []
         x = True
-        if len(shape)>2:
+        if len(self.shape)>2:
             self.shape_2d.append(width)
         if len(self.shape)>3:
             self.shape_2d.append(height)
@@ -333,8 +333,6 @@ class lwidget(Gtk.Misc):
                     try:
                         self.selected_piece = next(it)
                         self.moves = list(it)
-                        print(self.moves)
-                        #self.selected = list(it)
                         self.selected_pos = wc
                     except StopIteration:
                         self.clear_selection()
@@ -345,8 +343,6 @@ class lwidget(Gtk.Misc):
             try:
                 self.selected_piece = next(it)
                 self.moves = list(it)
-                print(self.moves)
-                #self.selected = list(it)
                 self.selected_pos = wc
             except StopIteration:
                 pass
@@ -373,11 +369,9 @@ class lwidget(Gtk.Misc):
             if event.button==3:
                 for sc in itertools.product(xs,ys):
                     self.chess.clear_pos(sq_to_world(sc, self.shape_2d))
-                print(self.chess.king_positions)
             else:
                 for sc in itertools.product(xs,ys):
                     self.chess.place_piece(sq_to_world(sc, self.shape_2d),self.piece,self.player,self.flags)
-                print(self.chess.king_positions)
             self.queue_draw()
         self.coords = None
                 
@@ -402,7 +396,7 @@ class window(Gtk.Window):
         self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
         self.add_events(Gdk.EventMask.KEY_RELEASE_MASK)
         self.add_events(Gdk.EventMask.BUTTON_RELEASE_MASK)
-        self.cwidget = widget(ndchess.ndChess(shape,pieces,players))
+        self.cwidget = widget(ndchess.ndChess(shape,pieces,players),players)
         self.add(self.cwidget)
 
 if __name__=="__main__":
@@ -413,7 +407,7 @@ if __name__=="__main__":
     parser.add_argument("--players",default="2",type=int)
     parser.add_argument("--pieces",default="../../../pieces/default.json",type=pieces_file)
     n = parser.parse_args()
-    win = window(n.shape,n.players,n.pieces)
+    win = window(n.shape,n.pieces,n.players)
     win.connect("delete-event", Gtk.main_quit)
     win.show_all()
     Gtk.main()
