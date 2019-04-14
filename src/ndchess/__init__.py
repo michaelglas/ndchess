@@ -70,6 +70,8 @@ def get_as_player(dir,player,axis,out=None):
         out = dir.copy()
     else:
         out[...] = dir
+    if player&1:
+        out[...,axis] = -out[...,axis]
     a2=(player//2)%dir.shape[-1]
     if a2:
         if a2<=axis:
@@ -77,8 +79,6 @@ def get_as_player(dir,player,axis,out=None):
         temp = out[...,axis].copy()
         out[...,axis]=out[...,a2]
         out[...,a2]=temp
-    if player&1:
-        numpy.negative(out,out=out)
     return out
 
 def get_permutations(n,k):

@@ -16,7 +16,7 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 import itertools
 import ndchess
-from ndchess import ina, hashable_array, flags, fileabspath, shellabspath
+from ndchess import hashable_array, flags, fileabspath, shellabspath
 from gi.repository import Gdk
 from gi.repository import GdkPixbuf
 import numpy
@@ -30,6 +30,14 @@ selected_color = (1,0,0,0.5)
 rect_color = [(0.745,0.207,0.035),(0.368,0.690,0.031),(0.564,0.129,0.690),(0,0,0)]
 
 get_end = operator.attrgetter("end")
+
+class int_tuple(tuple):
+    def __new__(cls,string):
+        return tuple.__new__(cls,map(int,string.split(",")))
+
+class pieces_file(list):
+    def __init__(self,string):
+        list.__init__(self,ndchess.pieces_from_file(fileabspath(string)))
 
 def index_iter(iter,value):
     for i,v in enumerate(iter):
@@ -256,22 +264,7 @@ class lwidget(Gtk.Misc):
             self.shift = m
     
     def swap_axis(self,axis1,axis2):
-        self.shape[[axis1,axis2]] = self.shape[[axis2,axis1]]
-        for i in self.chess.king_positions:
-            self.chess.king_positions.remove(i)
-            ar = i[0]
-            ar[[axis1,axis2]] = ar[[axis2,axis1]]
-            self.chess.king_positions.add((ar,i[1]))
-        for i in self.chess.board.keys():
-            new_pos = i.copy()
-            new_pos[[axis1,axis2]] = new_pos[[axis2,axis1]]
-            self.chess.board[new_pos] = self.chess.board.pop(i)
-        self.moves[0].start[[axis1,axis2]] = self.moves[0].start[[axis2,axis1]]
-        for i in self.moves:
-            i.end[[axis1,axis2]] = i.end[[axis2,axis1]]
-        if self.selected_pos is not None:
-            self.selected_pos[[axis1,axis2]] = self.selected_pos[[axis2,axis1]]
-        self.calculate_shape2d()
+        pass
     
     def key_pressed(self,target,event):
         key = event.get_keyval().keyval
@@ -390,7 +383,7 @@ class lwidget(Gtk.Misc):
                 
 
 class widget(Gtk.EventBox):
-    def __init__(self,chess,players=4):
+    def __init__(self,chess,players):
         Gtk.EventBox.__init__(self)
         self.cwidget = lwidget(chess,players)
         self.add(self.cwidget)
@@ -403,7 +396,7 @@ class widget(Gtk.EventBox):
     
 
 class window(Gtk.Window):
-    def __init__(self,shape=(8,8,2,2),pieces=ndchess.pieces_from_file(fileabspath("../../../pieces/default.json")),players=4):
+    def __init__(self,shape,pieces,players):
         Gtk.Window.__init__(self)
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
@@ -414,22 +407,13 @@ class window(Gtk.Window):
 
 if __name__=="__main__":
     shape = ()
-    pieces = None
-    if len(sys.argv)>1:
-        shape = []
-        cont = True
-        for i,a in enumerate(sys.argv[1:],1):
-            try:
-                shape.append(int(a))
-            except ValueError:
-                pass
-        else:
-            cont = False
-        if cont:
-            pieces = ndchess.pieces_from_file(shellabspath(sys[i]))
-    if not pieces:
-        pieces = ndchess.pieces_from_file(fileabspath("../../../pieces/default.json"))
-    win = window(tuple(shape) or (8,8),pieces)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--shape",default="4,4,4,4",type=int_tuple)
+    parser.add_argument("--players",default="2",type=int)
+    parser.add_argument("--pieces",default="../../../pieces/default.json",type=pieces_file)
+    n = parser.parse_args()
+    win = window(n.shape,n.players,n.pieces)
     win.connect("delete-event", Gtk.main_quit)
     win.show_all()
     Gtk.main()
