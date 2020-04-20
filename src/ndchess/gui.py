@@ -7,6 +7,7 @@ Created on 07.03.2019
 import sys
 import os.path
 import operator
+from operator import xor
 sys.path.append(os.path.normpath(os.path.join(__file__,"../..")))
 
 import gi
@@ -22,6 +23,7 @@ from gi.repository import GdkPixbuf
 import numpy
 import cairo
 from math import ceil,floor
+from functools import reduce
 
 square_size = 20
 color_light = (1.0, 0.807, 0.619)#(1,1,1)
@@ -48,17 +50,6 @@ def enumerate2(xs, start=0, step=1):
     for x in xs:
         yield (start, x)
         start += step
-
-def draw_checkerboard(cr,l,h):
-    for x,y in itertools.product(range(l),range(h)):
-        if x%2^y%2:
-            cr.set_source_rgb(*color_light)
-        else:
-            cr.set_source_rgb(*color_dark)
-        x *= square_size
-        y *= square_size
-        cr.rectangle(x,y,square_size,square_size)
-        cr.fill()
 
 def getd(l,i,d):
     return next(iter(l[i:]),d)
@@ -120,6 +111,17 @@ def sq_to_world(sc,shape2d):
     wc[1] = y
     return wc
 
+def draw_checkerboard(cr,shape,shape2d):
+    for wc in itertools.product(*map(range,shape)):
+        if reduce(xor, map(lambda x:x&1,wc)):
+            cr.set_source_rgb(*color_light)
+        else:
+            cr.set_source_rgb(*color_dark)
+        x,y = world_to_screen(wc, shape2d)
+        cr.rectangle(x,y,square_size,square_size)
+        cr.fill()
+
+
 class lwidget(Gtk.Misc):
     def __init__(self,chess,players=2):
         Gtk.Misc.__init__(self)
@@ -173,7 +175,7 @@ class lwidget(Gtk.Misc):
         tcr.set_source_rgba(*selected_color)
         tcr.paint()
         tcr.reset_clip()
-        draw_checkerboard(cr, self.width, self.height)
+        draw_checkerboard(cr, self.shape, self.shape_2d)
         cr.set_source(cairo.SurfacePattern(self.surface))
         cr.paint()
         x = self.width*square_size
@@ -236,9 +238,10 @@ class lwidget(Gtk.Misc):
         height = self.shape[1]
         self.shape_2d = []
         x = True
-        if len(self.shape)>2:
+        dims = len(self.shape)
+        if dims>2:
             self.shape_2d.append(width)
-        if len(self.shape)>3:
+        if dims>3:
             self.shape_2d.append(height)
             for sh in self.shape[2:-2]:
                 if x:
@@ -249,9 +252,15 @@ class lwidget(Gtk.Misc):
                     height = height*sh
                     self.shape_2d.append(height)
                     x = True
-            height *= self.shape[-1]
-        if len(self.shape)>2:
-            width *= self.shape[-2]
+            if dims%2:
+                height *= self.shape[-2]
+            else:
+                height *= self.shape[-1]
+        if dims>2:
+            if dims%2:
+                width *= self.shape[-1]
+            else:
+                width *= self.shape[-2]
         self.width = width
         self.height = height
     
@@ -400,10 +409,9 @@ class window(Gtk.Window):
         self.add(self.cwidget)
 
 if __name__=="__main__":
-    shape = ()
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--shape",default="4,4,4,4",type=int_tuple)
+    parser.add_argument("--shape",default="8,8,2,2",type=int_tuple)
     parser.add_argument("--players",default="2",type=int)
     parser.add_argument("--pieces",default="../../../pieces/default.json",type=pieces_file)
     n = parser.parse_args()

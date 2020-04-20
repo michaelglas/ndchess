@@ -2,7 +2,8 @@
     {
      "directions": [[1],[1,1]],
      "max_moves": 1,
-     "images": ["default/king1.svg","default/king2.svg"]
+     "images": ["default/king1.svg","default/king2.svg"],
+     "value": 7
     },
     {
      "directions": [[0,1]],
@@ -11,23 +12,28 @@
      "start_max_moves": 2,
      "max_moves": 1,
      "player_dependent_axis": 1, 
-     "images": ["default/pawn1.svg","default/pawn2.svg"]
+     "images": ["default/pawn1.svg","default/pawn2.svg"],
+     "value": 1
     },
     {
      "directions": [[1]],
-     "images": ["default/rook1.svg","default/rook2.svg"]
-    },
-    {
-     "directions": [[1,1]],
-     "images": ["default/bishop1.svg","default/bishop2.svg"]
+     "images": ["default/rook1.svg","default/rook2.svg"],
+     "value": 3
     },
     {
      "directions": [[1,2]],
      "max_moves": 1,
-     "images": ["default/knight1.svg","default/knight2.svg"]
+     "images": ["default/knight1.svg","default/knight2.svg"],
+     "value": 4
+    },
+    {
+     "directions": [[1,1]],
+     "images": ["default/bishop1.svg","default/bishop2.svg"],
+     "value": 3
     },
     {
      "directions": [[1],[1,1]],
-     "images": ["default/queen1.svg","default/queen2.svg"]
+     "images": ["default/queen1.svg","default/queen2.svg"],
+     "value": 5
     }
 ]

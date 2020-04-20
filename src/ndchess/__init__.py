@@ -27,7 +27,7 @@ class PieceJsonEncoder(json.JSONEncoder):
 
 def Piece_object_hook(d):
     if "directions" in d:
-        return piece(**{ k:d[k] for k in ["directions","max_moves","auto_generate","images","start_max_moves","capturing","player_dependent_axis"] if k in d})
+        return piece(**{ k:d[k] for k in ["directions","max_moves","auto_generate","images","start_max_moves","capturing","player_dependent_axis","value"] if k in d})
 
 #field = numpy.dtype([("player",numpy.uint8),("piece",numpy.uint8),("flags",numpy.uint8)])
 
@@ -49,9 +49,11 @@ class Move:
         self.start = start
         self.end = end
         self.chess = chess
-    def execute(self):
-        self.chess.move_piece_low(self.start,self.end)
-        self.chess.clear_capturing_markers()
+    def execute(self,chess=None):
+        if chess is None:
+            chess = self.chess
+        chess.move_piece_low(self.start,self.end)
+        chess.clear_capturing_markers()
 
 class MoveEP(Move):
     def __init__(self,start,end,cm,chess):
@@ -59,10 +61,11 @@ class MoveEP(Move):
         self.end = end
         self.capt_mark = cm
         self.chess = chess
-    def execute(self):
-        Move.execute(self)
-        self.chess.clear_capturing_markers()
-        self.chess.place_capture_marker(self.capt_mark,self.end)
+    def execute(self,chess=None):
+        if chess is None:
+            chess = self.chess
+        Move.execute(self,chess)
+        chess.place_capture_marker(self.capt_mark,self.end)
         
 
 def get_as_player(dir,player,axis,out=None):
@@ -190,31 +193,11 @@ def _get_all_moves(pos,directions,player,max_moves,chess,piece):
         iter = range(max_moves)
     else:
         iter = itertools.repeat(None)
-    print(pos)
     for i in directions:
 
         new_pos = pos.copy()
         for j in iter:
             new_pos += i
-            """
-            if (new_pos<0).any() or (new_pos>=chess.shape).any():
-                break
-            try:
-                cont2 = chess.board[new_pos]
-            except KeyError:
-                yield Move(pos,new_pos.copy(),chess)
-                continue
-            if type(cont2)==capture_marker:
-                yield Move(pos,new_pos.copy(),chess)
-                if cont2.link.player!=player and cont2.link.piece==piece:
-                    break
-                continue
-            if cont2.player==player:
-                break
-            yield Move(pos,new_pos.copy(),chess)
-            if cont2.piece:
-                break
-            """
             r,b = _check_all(new_pos, piece, player, chess)
             if r:
                 yield Move(pos,new_pos.copy(),chess)
@@ -372,6 +355,15 @@ class ndChess:
         self.capturing_markers = set()
         self.turn = 1
         self.players = players
+    def copy(self):
+        ret = object.__new__(ndChess)
+        ret.shape = self.shape
+        ret.allowed_pieces = self.allowed_pieces
+        ret.players = self.players
+        ret.board = self.board.copy()
+        ret.king_positions = self.king_positions.copy()
+        ret.capturing_markers = self.capturing_markers.copy()
+        return ret
     def place_capture_marker(self,pos,link):
         pos = numpy.array(pos,copy=False).view(hashable_array)
         if link in self.board and isinstance(self.board[link], field):
@@ -535,12 +527,13 @@ def extend(v,dims):
     
 
 class piece:
-    def __init__(self, directions, max_moves=None, auto_generate = True, images=[], start_max_moves=None, capturing=None, player_dependent_axis=None):
+    def __init__(self, directions, value, max_moves=None, auto_generate = True, images=[], start_max_moves=None, capturing=None, player_dependent_axis=None):
         self.directions = list(map(partial(numpy.array,dtype=numpy.int8),directions))
         self.max_moves = max_moves
         self.auto_generate = auto_generate
         self.images = list(map(path.abspath,images))
         self.children = []
+        self.value = value
         if start_max_moves is None:
             self.start_max_moves = self.max_moves
         else:
@@ -556,9 +549,10 @@ class piece:
             self.player_dependent_axis=player_dependent_axis
             self.player_dependent = True
     @classmethod
-    def from_values(cls,directions, max_moves, auto_generate, images, start_max_moves, has_capturing, player_dependent, player_dependent_axis=None, capturing=None):
+    def from_values(cls,directions, value, max_moves, auto_generate, images, start_max_moves, has_capturing, player_dependent, player_dependent_axis=None, capturing=None):
         self = cls.__new__(cls)
         self.directions = directions
+        self.value = value
         self.max_moves = max_moves
         self.auto_generate = auto_generate
         self.images = images
@@ -632,7 +626,7 @@ class piece:
                 cap = capturing[0]
                 for i in range(1,players):
                     get_as_player(cap, i, self.player_dependent_axis, out=capturing[i])
-        ret = piece.from_values(directions, self.max_moves, self.auto_generate, self.images, self.start_max_moves, self.has_capturing, self.player_dependent, self.player_dependent_axis if self.player_dependent else None, capturing)
+        ret = piece.from_values(directions, self.value, self.max_moves, self.auto_generate, self.images, self.start_max_moves, self.has_capturing, self.player_dependent, self.player_dependent_axis if self.player_dependent else None, capturing)
         ret.parent = self
         self.children.append(ret)
         return ret
